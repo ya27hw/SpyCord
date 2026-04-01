@@ -110,6 +110,22 @@ function getEffectiveGuildSelection() {
   return state.guildSelectionDirty ? state.draftGuildIds : state.configuredGuildIds;
 }
 
+function shouldAutoOpenSettings(config, monitor) {
+  const token = String(config?.token || "").trim();
+  const guildIds = (config?.guild_ids || []).map((guildId) => String(guildId)).filter(Boolean);
+  const monitoredGuilds = (monitor?.guilds || []).filter((guild) => guild.monitored);
+
+  if (!token) {
+    return true;
+  }
+
+  if (monitor?.running && monitoredGuilds.length > 0) {
+    return false;
+  }
+
+  return guildIds.length === 0;
+}
+
 function refreshConfigVisibility() {
   const guildCount = getEffectiveGuildSelection().length;
   const hasConfig = tokenInputEl.value.trim() && guildCount > 0;
@@ -548,7 +564,7 @@ async function fetchConfig() {
   state.draftGuildIds = [...state.configuredGuildIds];
   state.guildSelectionDirty = false;
   state.configExpanded = !(payload.config.token && (payload.config.guild_ids || []).length > 0);
-  applySettingsState(!payload.config.token || (payload.config.guild_ids || []).length === 0);
+  applySettingsState(shouldAutoOpenSettings(payload.config, payload.monitor));
   updateMonitorUI(payload.monitor);
   renderGuildSelector(getMonitorGuilds(payload.monitor));
 }
