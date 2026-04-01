@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guild Monitor Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="server-rail">
+      <div class="server-badge">GM</div>
+      <div class="server-pill"></div>
+    </aside>
+
+    <aside class="channel-sidebar">
+      <div class="sidebar-header">
+        <p class="eyebrow">Live Monitor</p>
+        <h1>Guild Logs</h1>
+        <p id="log-path" class="sidebar-meta">Waiting for data...</p>
+      </div>
+
+      <div class="status-card">
+        <div>
+          <span class="status-dot"></span>
+          <span id="status-text">Connecting</span>
+        </div>
+        <span id="refresh-text" class="refresh-text">Polling...</span>
+      </div>
+
+      <nav id="channel-groups" class="channel-groups"></nav>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="chat-header">
+        <div>
+          <p class="eyebrow">Selected Channel</p>
+          <h2 id="channel-title">No channel selected</h2>
+        </div>
+        <div class="header-controls">
+          <label class="search-wrap" for="search-input">
+            <span class="search-icon">⌕</span>
+            <input id="search-input" type="search" placeholder="Search messages, authors, events...">
+          </label>
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">Light Mode</button>
+        </div>
+        <div class="header-meta">
+          <span id="message-count">0 messages</span>
+        </div>
+      </header>
+
+      <section id="empty-state" class="empty-state hidden">
+        <div class="empty-card">
+          <h3>No messages yet</h3>
+          <p>This viewer updates automatically when new log lines are written.</p>
+        </div>
+      </section>
+
+      <section id="message-list" class="message-list"></section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
