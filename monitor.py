@@ -4,90 +4,8 @@ from pathlib import Path
 from typing import Iterable
 
 import discord
-
-
-class GuildMonitor(discord.Client):
-    def __init__(self, *, target_guild_ids: Iterable[int], logger: logging.Logger, **kwargs):
-        super().__init__(**kwargs)
-        self.target_guild_ids = {int(guild_id) for guild_id in target_guild_ids}
-        self.logger = logger
-
-    async def on_ready(self):
-        self.logger.info("Logged in as %s (%s)", self.user, self.user.id)
-        found_guilds = [guild for guild in self.guilds if guild.id in self.target_guild_ids]
-        missing_guilds = sorted(self.target_guild_ids - {guild.id for guild in found_guilds})
-
-        if found_guilds:
-            for guild in found_guilds:
-                self.logger.info("Monitoring guild: %s (%s)", guild.name, guild.id)
-
-        if missing_guilds:
-            self.logger.error("Guild(s) unavailable: %s", ", ".join(str(guild_id) for guild_id in missing_guilds))
-
-        if not found_guilds:
-            await self.close()
-            return
-
-    def log_entry(
-        self,
-        *,
-        event_type: str,
-        timestamp: str,
-        category_name: str,
-        channel_name: str,
-        author: str,
-        content: str,
-    ):
-        self.logger.info(
-            "[%s] [%s / #%s] [%s] %s: %s",
-            timestamp,
-            category_name,
-            channel_name,
-            event_type,
-            author,
-            content,
-        )
-
-    def should_ignore_message(self, message: discord.Message) -> bool:
-        if message.guild is None or message.guild.id not in self.target_guild_ids:
-            return True
-        return bool(message.author and message.author.bot)
-
-    @staticmethod
-    def stringify_message_content(message: discord.Message) -> str:
-        parts: list[str] = []
-
-        base_content = message.clean_content or message.content
-        if base_content:
-            parts.append(base_content)
-
-        if message.attachments:
-            attachments = ", ".join(attachment.url for attachment in message.attachments)
-            parts.append(f"[attachments] {attachments}")
-
-        if message.embeds:
-            parts.append(f"[embeds] {len(message.embeds)} embed(s)")
-
-        return " | ".join(parts) if parts else "[no text content]"
-
-    async def on_message(self, message: discord.Message):
-        if self.should_ignore_message(message):
-            return
-
-        created_at = message.created_at.isoformat()
-        author = str(message.author)
-        content = self.stringify_message_content(message)
-        channel_name = getattr(message.channel, "name", str(message.channel))
-        category_name = getattr(getattr(message.channel, "category", None), "name", "No Category")
-
-        self.log_entry(
-            event_type="MESSAGE",
-            timestamp=created_at,
-            category_name=category_name,
-            channel_name=channel_name,
-            author=author,
-            content=content,
-        )
+from discord.abc import Messageable
+from discord.ext import commands
 
 
 def build_logger(log_file: str | None) -> logging.Logger:
@@ -113,21 +31,117 @@ def build_logger(log_file: str | None) -> logging.Logger:
     return logger
 
 
-def build_intents() -> discord.Intents:
+def should_ignore_message(message: discord.Message, target_guild_ids: set[int]) -> bool:
+    if message.guild is None or message.guild.id not in target_guild_ids:
+        return True
+    return bool(message.author and message.author.bot)
+
+
+def stringify_message_content(message: discord.Message) -> str:
+    parts: list[str] = []
+
+    base_content = message.clean_content or message.content
+    if base_content:
+        parts.append(base_content)
+
+    if message.attachments:
+        attachments = ", ".join(attachment.url for attachment in message.attachments)
+        parts.append(f"[attachments] {attachments}")
+
+    if message.embeds:
+        parts.append(f"[embeds] {len(message.embeds)} embed(s)")
+
+    return " | ".join(parts) if parts else "[no text content]"
+
+
+def log_entry(
+    logger: logging.Logger,
+    *,
+    timestamp: str,
+    category_name: str,
+    channel_name: str,
+    author: str,
+    content: str,
+):
+    logger.info(
+        "[%s] [%s / #%s] [MESSAGE] %s: %s",
+        timestamp,
+        category_name,
+        channel_name,
+        author,
+        content,
+    )
+
+
+def install_read_only_guards():
+    async def blocked_send(*args, **kwargs):
+        raise RuntimeError("SpyCord is running in read-only mode and cannot send messages.")
+
+    async def blocked_add_reaction(*args, **kwargs):
+        raise RuntimeError("SpyCord is running in read-only mode and cannot add reactions.")
+
+    async def blocked_remove_reaction(*args, **kwargs):
+        raise RuntimeError("SpyCord is running in read-only mode and cannot remove reactions.")
+
+    async def blocked_clear_reaction(*args, **kwargs):
+        raise RuntimeError("SpyCord is running in read-only mode and cannot clear reactions.")
+
+    Messageable.send = blocked_send
+    discord.Message.reply = blocked_send
+    discord.Message.add_reaction = blocked_add_reaction
+    discord.Message.remove_reaction = blocked_remove_reaction
+    discord.Message.clear_reaction = blocked_clear_reaction
+    discord.Message.clear_reactions = blocked_clear_reaction
+
+
+def create_client(guild_ids: Iterable[int], log_file: str | None) -> commands.Bot:
+    logger = build_logger(log_file)
+    target_guild_ids = {int(guild_id) for guild_id in guild_ids}
+    install_read_only_guards()
+
     intents = discord.Intents.default()
     intents.guilds = True
     intents.messages = True
     intents.message_content = True
-    return intents
 
+    bot = commands.Bot(command_prefix="!", intents=intents)
 
-def create_client(guild_ids: Iterable[int], log_file: str | None) -> GuildMonitor:
-    logger = build_logger(log_file)
-    return GuildMonitor(
-        target_guild_ids=guild_ids,
-        logger=logger,
-        intents=build_intents(),
-    )
+    @bot.event
+    async def on_ready():
+        logger.info("Logged in as %s (%s)", bot.user, bot.user.id)
+        found_guilds = [guild for guild in bot.guilds if guild.id in target_guild_ids]
+        missing_guilds = sorted(target_guild_ids - {guild.id for guild in found_guilds})
+
+        for guild in found_guilds:
+            logger.info("Monitoring guild: %s (%s)", guild.name, guild.id)
+
+        if missing_guilds:
+            logger.error("Guild(s) unavailable: %s", ", ".join(str(guild_id) for guild_id in missing_guilds))
+
+        if not found_guilds:
+            await bot.close()
+
+    @bot.listen("on_message")
+    async def on_message(message: discord.Message):
+        if should_ignore_message(message, target_guild_ids):
+            return
+
+        created_at = message.created_at.isoformat()
+        author = str(message.author)
+        content = stringify_message_content(message)
+        channel_name = getattr(message.channel, "name", str(message.channel))
+        category_name = getattr(getattr(message.channel, "category", None), "name", "No Category")
+
+        log_entry(
+            logger,
+            timestamp=created_at,
+            category_name=category_name,
+            channel_name=channel_name,
+            author=author,
+            content=content,
+        )
+
+    return bot
 
 
 def parse_args():

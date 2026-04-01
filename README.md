@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Watch messages from one or more guilds, search logs, switch channels, and review edits or deletes from a Discord-inspired UI.
+  Watch messages from one or more guilds, search logs, switch channels, and browse everything from a Discord-inspired UI.
 </p>
 
 ---
@@ -18,7 +18,6 @@ SpyCord is a small Python app that:
 - saves message activity to a local log file
 - opens a local web dashboard to browse those logs
 - lets you search messages and switch between channels
-- tracks normal messages, edits, and deletes
 - highlights mentions inside the viewer
 
 Everything runs on your own machine.
@@ -139,7 +138,7 @@ The dashboard includes:
 - a search box for filtering messages
 - dark mode by default
 - a light mode toggle
-- badges for `MESSAGE`, `EDIT`, and `DELETE`
+- message entries with timestamps, channels, and mentions
 
 ---
 
