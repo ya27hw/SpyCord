@@ -99,12 +99,10 @@ def create_client(guild_ids: Iterable[int], log_file: str | None) -> commands.Bo
     target_guild_ids = {int(guild_id) for guild_id in guild_ids}
     install_read_only_guards()
 
-    intents = discord.Intents.default()
-    intents.guilds = True
-    intents.messages = True
-    intents.message_content = True
-
-    bot = commands.Bot(command_prefix="!", intents=intents)
+    bot = commands.Bot(
+        command_prefix="spycord-7f3b1q9zv2n4k8r6x0m5",
+        
+    )
 
     @bot.event
     async def on_ready():
