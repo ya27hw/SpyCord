@@ -58,16 +58,22 @@ def log_entry(
     logger: logging.Logger,
     *,
     timestamp: str,
+    guild_id: int,
+    guild_name: str,
     category_name: str,
     channel_name: str,
+    mentions_me: bool,
     author: str,
     content: str,
 ):
     logger.info(
-        "[%s] [%s / #%s] [MESSAGE] %s: %s",
+        "[%s] [%s|%s] [%s / #%s] [MESSAGE]%s %s: %s",
         timestamp,
+        guild_id,
+        guild_name,
         category_name,
         channel_name,
+        " [MENTION]" if mentions_me else "",
         author,
         content,
     )
@@ -101,14 +107,25 @@ def create_client(guild_ids: Iterable[int], log_file: str | None) -> commands.Bo
 
     bot = commands.Bot(
         command_prefix="spycord-7f3b1q9zv2n4k8r6x0m5",
-        
     )
+    bot.spycord_guilds = []
 
     @bot.event
     async def on_ready():
         logger.info("Logged in as %s (%s)", bot.user, bot.user.id)
+        bot.spycord_guilds = [
+            {
+                "id": guild.id,
+                "name": guild.name,
+                "icon_url": str(guild.icon.url) if guild.icon else None,
+                "monitored": guild.id in target_guild_ids,
+            }
+            for guild in bot.guilds
+        ]
         found_guilds = [guild for guild in bot.guilds if guild.id in target_guild_ids]
         missing_guilds = sorted(target_guild_ids - {guild.id for guild in found_guilds})
+
+        logger.info("Discovered %s guild(s) for this bot account.", len(bot.guilds))
 
         for guild in found_guilds:
             logger.info("Monitoring guild: %s (%s)", guild.name, guild.id)
@@ -116,8 +133,10 @@ def create_client(guild_ids: Iterable[int], log_file: str | None) -> commands.Bo
         if missing_guilds:
             logger.error("Guild(s) unavailable: %s", ", ".join(str(guild_id) for guild_id in missing_guilds))
 
-        if not found_guilds:
-            await bot.close()
+        if not target_guild_ids:
+            logger.info("No guilds selected yet. SpyCord is connected and waiting for your selection.")
+        elif not found_guilds:
+            logger.warning("No configured guilds are currently available. SpyCord will stay connected and idle.")
 
     @bot.listen("on_message")
     async def on_message(message: discord.Message):
@@ -129,12 +148,17 @@ def create_client(guild_ids: Iterable[int], log_file: str | None) -> commands.Bo
         content = stringify_message_content(message)
         channel_name = getattr(message.channel, "name", str(message.channel))
         category_name = getattr(getattr(message.channel, "category", None), "name", "No Category")
+        guild_name = getattr(message.guild, "name", "Unknown Guild")
+        mentions_me = bool(bot.user and message.mentions and any(user.id == bot.user.id for user in message.mentions))
 
         log_entry(
             logger,
             timestamp=created_at,
+            guild_id=message.guild.id,
+            guild_name=guild_name,
             category_name=category_name,
             channel_name=channel_name,
+            mentions_me=mentions_me,
             author=author,
             content=content,
         )

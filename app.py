@@ -67,28 +67,56 @@ class MonitorManager:
         self._running = False
         self._error: str | None = None
         self._guild_ids: list[int] = []
+        self._token: str | None = None
+        self._startup_event: threading.Event | None = None
 
     def status(self) -> dict[str, Any]:
         with self._lock:
+            client = self._client
+            guilds: list[dict[str, Any]] = []
+            if client is not None:
+                for guild in getattr(client, "spycord_guilds", []):
+                    guilds.append(
+                        {
+                            "id": str(guild.get("id", "")),
+                            "name": guild.get("name", "Unknown Server"),
+                            "icon_url": guild.get("icon_url"),
+                            "monitored": bool(guild.get("monitored")),
+                        }
+                    )
             return {
                 "running": self._running,
                 "error": self._error,
-                "guild_ids": list(self._guild_ids),
+                "guild_ids": [str(guild_id) for guild_id in self._guild_ids],
+                "guilds": guilds,
             }
 
     def start(self, token: str, guild_ids: list[int]):
+        normalized_guild_ids = list(guild_ids)
+        with self._lock:
+            if self._running and self._token == token and self._guild_ids == normalized_guild_ids:
+                return
+
         self.stop()
-        self._error = None
-        self._guild_ids = list(guild_ids)
+        startup_event = threading.Event()
+
+        with self._lock:
+            self._error = None
+            self._guild_ids = normalized_guild_ids
+            self._token = token
+            self._startup_event = startup_event
+
         thread = threading.Thread(
             target=self._run_client,
-            args=(token, list(guild_ids)),
+            args=(token, normalized_guild_ids, startup_event),
             daemon=True,
         )
-        self._thread = thread
+        with self._lock:
+            self._thread = thread
         thread.start()
+        startup_event.wait(timeout=10)
 
-    def _run_client(self, token: str, guild_ids: list[int]):
+    def _run_client(self, token: str, guild_ids: list[int], startup_event: threading.Event):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         client = create_client(guild_ids, str(self.log_path))
@@ -97,6 +125,7 @@ class MonitorManager:
             self._loop = loop
             self._client = client
             self._running = True
+            startup_event.set()
 
         try:
             loop.run_until_complete(client.start(token))
@@ -108,6 +137,8 @@ class MonitorManager:
                 self._running = False
                 self._client = None
                 self._loop = None
+                if self._startup_event is startup_event:
+                    self._startup_event = None
             loop.close()
 
     def stop(self):
@@ -115,6 +146,7 @@ class MonitorManager:
             loop = self._loop
             client = self._client
             thread = self._thread
+            startup_event = self._startup_event
 
         if loop is not None and client is not None:
             future = asyncio.run_coroutine_threadsafe(client.close(), loop)
@@ -122,6 +154,18 @@ class MonitorManager:
                 future.result(timeout=10)
             except Exception:
                 pass
+        elif startup_event is not None:
+            startup_event.wait(timeout=10)
+            with self._lock:
+                loop = self._loop
+                client = self._client
+                thread = self._thread
+            if loop is not None and client is not None:
+                future = asyncio.run_coroutine_threadsafe(client.close(), loop)
+                try:
+                    future.result(timeout=10)
+                except Exception:
+                    pass
 
         if thread is not None and thread.is_alive():
             thread.join(timeout=10)
@@ -131,6 +175,8 @@ class MonitorManager:
             self._client = None
             self._loop = None
             self._running = False
+            self._token = None
+            self._startup_event = None
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
@@ -143,6 +189,13 @@ def load_config(config_path: Path) -> dict[str, Any]:
     return {
         "token": data.get("token", ""),
         "guild_ids": [int(guild_id) for guild_id in data.get("guild_ids", [])],
+    }
+
+
+def serialize_config(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "token": config.get("token", ""),
+        "guild_ids": [str(guild_id) for guild_id in config.get("guild_ids", [])],
     }
 
 
@@ -185,7 +238,7 @@ def create_app_server(
                 self.send_json(
                     HTTPStatus.OK,
                     {
-                        "config": load_config(config_path),
+                        "config": serialize_config(load_config(config_path)),
                         "monitor": manager.status(),
                     },
                 )
@@ -194,9 +247,16 @@ def create_app_server(
 
         def handle_state_api(self, query: str):
             params = parse_qs(query)
+            selected_guild = params.get("guild", [None])[0]
             selected_channel = params.get("channel", [None])[0]
             search_query = params.get("q", [""])[0]
-            payload = build_state(log_path, selected_channel, message_limit, search_query)
+            payload = build_state(
+                log_path,
+                selected_guild,
+                selected_channel,
+                message_limit,
+                search_query,
+            )
             payload["monitor"] = manager.status()
             self.send_json(HTTPStatus.OK, payload)
 
@@ -204,7 +264,7 @@ def create_app_server(
             self.send_json(
                 HTTPStatus.OK,
                 {
-                    "config": load_config(config_path),
+                    "config": serialize_config(load_config(config_path)),
                     "monitor": manager.status(),
                 },
             )
@@ -220,13 +280,13 @@ def create_app_server(
             config = {"token": token, "guild_ids": guild_ids}
             save_config(config_path, config)
 
-            if data.get("start_monitor", True) and token and guild_ids:
+            if data.get("start_monitor", True) and token:
                 manager.start(token, guild_ids)
 
             self.send_json(
                 HTTPStatus.OK,
                 {
-                    "config": config,
+                    "config": serialize_config(config),
                     "monitor": manager.status(),
                 },
             )
@@ -276,8 +336,8 @@ def main():
         }
         save_config(config_path, initial_config)
 
-    if initial_config.get("token") and initial_config.get("guild_ids"):
-        manager.start(initial_config["token"], initial_config["guild_ids"])
+    if initial_config.get("token"):
+        manager.start(initial_config["token"], initial_config.get("guild_ids", []))
 
     server = create_app_server(
         args.host,
@@ -293,9 +353,13 @@ def main():
     print(f"Viewer running at http://{args.host}:{args.port}")
     print(f"Writing and reading logs from: {log_path}")
     print(f"Using config file: {config_path}")
+    print("Press Ctrl+C to stop SpyCord.")
 
     try:
-        server_thread.join()
+        while server_thread.is_alive():
+            server_thread.join(timeout=1)
+    except KeyboardInterrupt:
+        print("\nStopping SpyCord...")
     finally:
         manager.stop()
         server.shutdown()

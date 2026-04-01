@@ -31,7 +31,7 @@ You need:
 - `Python 3.10+`
 - a Discord bot token
 - the bot added to the server(s) you want to monitor
-- `Message Content Intent` enabled for that bot in the Discord Developer Portal
+Developer Portal
 
 If you are brand new to this, do not worry. Just follow the steps below one by one.
 
@@ -164,7 +164,6 @@ Keep that file private.
 - SpyCord only works with a Discord bot account.
 - Your bot must be inside the guild(s) you want to monitor.
 - Your bot needs permission to view the channels you care about.
-- `Message Content Intent` must be enabled or message text may not appear.
 - The dashboard reads from local logs, so if the monitor is stopped, no new messages will appear.
 
 ---
@@ -179,7 +178,6 @@ Check these:
 - the guild ID is correct
 - the bot is actually in that server
 - the bot can see the target channels
-- `Message Content Intent` is enabled in the Discord developer portal
 
 ### PowerShell blocks the virtual environment activation
 

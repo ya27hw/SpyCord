@@ -11,7 +11,10 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 
-LOG_PATTERN = re.compile(
+LOG_PATTERN_WITH_GUILD = re.compile(
+    r"^\[(?P<timestamp>.+?)\] \[(?P<guild_id>\d+)\|(?P<guild_name>.*?)\] \[(?P<category>.*?) / #(?P<channel>.*?)\](?: \[(?P<event_type>[A-Z]+)\])?(?: \[(?P<mention_flag>MENTION)\])? (?P<author>.*?): (?P<content>.*)$"
+)
+LOG_PATTERN_LEGACY = re.compile(
     r"^\[(?P<timestamp>.+?)\] \[(?P<category>.*?) / #(?P<channel>.*?)\](?: \[(?P<event_type>[A-Z]+)\])? (?P<author>.*?): (?P<content>.*)$"
 )
 STATIC_DIR = Path(__file__).with_name("viewer")
@@ -20,51 +23,89 @@ STATIC_DIR = Path(__file__).with_name("viewer")
 @dataclass
 class MessageEntry:
     timestamp: str
+    guild_id: str
+    guild_name: str
     category: str
     channel: str
     event_type: str
+    mentions_me: bool
     author: str
     content: str
     line_number: int
 
     @property
     def channel_id(self) -> str:
-        return f"{self.category}::{self.channel}"
+        return f"{self.guild_id}::{self.category}::{self.channel}"
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
+            "guild_id": self.guild_id,
+            "guild_name": self.guild_name,
             "category": self.category,
             "channel": self.channel,
             "channel_id": self.channel_id,
             "event_type": self.event_type,
+            "mentions_me": self.mentions_me,
             "author": self.author,
             "content": self.content,
             "line_number": self.line_number,
         }
 
 
-def parse_log_file(log_path: Path) -> tuple[list[MessageEntry], list[dict[str, Any]], str | None]:
+def parse_log_file(
+    log_path: Path,
+) -> tuple[list[MessageEntry], list[dict[str, Any]], list[dict[str, Any]], str | None, str | None]:
     messages: list[MessageEntry] = []
     channels: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+    guilds: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
 
     if not log_path.exists():
-        return messages, [], None
+        return messages, [], [], None, None
 
     with log_path.open("r", encoding="utf-8", errors="replace") as handle:
         for line_number, raw_line in enumerate(handle, start=1):
             line = raw_line.rstrip("\n")
-            match = LOG_PATTERN.match(line)
-            if not match:
-                continue
+            match = LOG_PATTERN_WITH_GUILD.match(line)
+            if match is None:
+                legacy_match = LOG_PATTERN_LEGACY.match(line)
+                if legacy_match is None:
+                    continue
+                guild_id = "legacy"
+                guild_name = "Unknown Server"
+                category = legacy_match.group("category")
+                channel = legacy_match.group("channel")
+                event_type = legacy_match.group("event_type") or "MESSAGE"
+                mentions_me = False
+                author = legacy_match.group("author")
+                content = legacy_match.group("content")
+            else:
+                guild_id = match.group("guild_id")
+                guild_name = match.group("guild_name")
+                category = match.group("category")
+                channel = match.group("channel")
+                event_type = match.group("event_type") or "MESSAGE"
+                mentions_me = match.group("mention_flag") == "MENTION"
+                author = match.group("author")
+                content = match.group("content")
+
+            if guild_id not in guilds:
+                guilds[guild_id] = {
+                    "id": guild_id,
+                    "name": guild_name,
+                    "icon_url": None,
+                }
 
             entry = MessageEntry(
-                timestamp=match.group("timestamp"),
-                category=match.group("category"),
-                channel=match.group("channel"),
-                event_type=match.group("event_type") or "MESSAGE",
-                author=match.group("author"),
-                content=match.group("content"),
+                timestamp=(match.group("timestamp") if match else legacy_match.group("timestamp")),
+                guild_id=guild_id,
+                guild_name=guild_name,
+                category=category,
+                channel=channel,
+                event_type=event_type,
+                mentions_me=mentions_me,
+                author=author,
+                content=content,
                 line_number=line_number,
             )
             messages.append(entry)
@@ -72,6 +113,8 @@ def parse_log_file(log_path: Path) -> tuple[list[MessageEntry], list[dict[str, A
             if entry.channel_id not in channels:
                 channels[entry.channel_id] = {
                     "id": entry.channel_id,
+                    "guild_id": entry.guild_id,
+                    "guild_name": entry.guild_name,
                     "category": entry.category,
                     "name": entry.channel,
                     "count": 0,
@@ -81,8 +124,12 @@ def parse_log_file(log_path: Path) -> tuple[list[MessageEntry], list[dict[str, A
             channels[entry.channel_id]["count"] += 1
             channels[entry.channel_id]["last_timestamp"] = entry.timestamp
 
-    selected_channel = next(iter(channels), None)
-    return messages, list(channels.values()), selected_channel
+    selected_guild = next(iter(guilds), None)
+    selected_channel = next(
+        (channel["id"] for channel in channels.values() if channel["guild_id"] == selected_guild),
+        None,
+    )
+    return messages, list(channels.values()), list(guilds.values()), selected_guild, selected_channel
 
 
 def message_matches_search(message: MessageEntry, search_query: str) -> bool:
@@ -100,12 +147,30 @@ def message_matches_search(message: MessageEntry, search_query: str) -> bool:
     return any(needle in haystack.casefold() for haystack in haystacks)
 
 
-def build_state(log_path: Path, selected_channel: str | None, limit: int, search_query: str) -> dict[str, Any]:
-    messages, channels, default_channel = parse_log_file(log_path)
-    active_channel = selected_channel or default_channel
+def build_state(
+    log_path: Path,
+    selected_guild: str | None,
+    selected_channel: str | None,
+    limit: int,
+    search_query: str,
+) -> dict[str, Any]:
+    messages, channels, guilds, default_guild, default_channel = parse_log_file(log_path)
+    active_guild = selected_guild or default_guild
+
+    if active_guild:
+        guild_channels = [channel for channel in channels if channel["guild_id"] == active_guild]
+        if selected_channel and any(channel["id"] == selected_channel for channel in guild_channels):
+            active_channel = selected_channel
+        else:
+            active_channel = guild_channels[0]["id"] if guild_channels else None
+    else:
+        guild_channels = channels
+        active_channel = selected_channel or default_channel
 
     if active_channel:
         filtered = [message for message in messages if message.channel_id == active_channel]
+    elif active_guild:
+        filtered = [message for message in messages if message.guild_id == active_guild]
     else:
         filtered = messages
 
@@ -115,7 +180,9 @@ def build_state(log_path: Path, selected_channel: str | None, limit: int, search
 
     return {
         "log_path": str(log_path),
+        "guilds": guilds,
         "channels": channels,
+        "selected_guild": active_guild,
         "selected_channel": active_channel,
         "search_query": search_query,
         "messages": [message.to_dict() for message in filtered],
@@ -143,9 +210,10 @@ class LogViewerHandler(BaseHTTPRequestHandler):
 
     def handle_state_api(self, query: str):
         params = parse_qs(query)
+        selected_guild = params.get("guild", [None])[0]
         selected_channel = params.get("channel", [None])[0]
         search_query = params.get("q", [""])[0]
-        state = build_state(self.log_path, selected_channel, self.message_limit, search_query)
+        state = build_state(self.log_path, selected_guild, selected_channel, self.message_limit, search_query)
         payload = json.dumps(state).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json; charset=utf-8")

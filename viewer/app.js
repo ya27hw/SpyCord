@@ -1,13 +1,25 @@
 const state = {
+  selectedGuild: null,
   selectedChannel: null,
   lastUpdated: null,
   searchQuery: "",
   theme: "dark",
+  configExpanded: true,
+  sidebarCollapsed: false,
+  helpOpen: false,
+  settingsOpen: false,
+  guilds: [],
+  configuredGuildIds: [],
+  draftGuildIds: [],
+  guildSelectionDirty: false,
+  formatData: true,
 };
 
+const serverListEl = document.getElementById("server-list");
 const channelGroupsEl = document.getElementById("channel-groups");
 const messageListEl = document.getElementById("message-list");
 const channelTitleEl = document.getElementById("channel-title");
+const sidebarGuildTitleEl = document.getElementById("sidebar-guild-title");
 const messageCountEl = document.getElementById("message-count");
 const statusTextEl = document.getElementById("status-text");
 const refreshTextEl = document.getElementById("refresh-text");
@@ -15,12 +27,28 @@ const emptyStateEl = document.getElementById("empty-state");
 const logPathEl = document.getElementById("log-path");
 const searchInputEl = document.getElementById("search-input");
 const themeToggleEl = document.getElementById("theme-toggle");
+const toggleSidebarEl = document.getElementById("toggle-sidebar");
+const openHelpEl = document.getElementById("open-help");
+const openSettingsEl = document.getElementById("open-settings");
+const closeHelpEl = document.getElementById("close-help");
+const closeSettingsEl = document.getElementById("close-settings");
+const helpPanelEl = document.getElementById("help-panel");
+const settingsPanelEl = document.getElementById("settings-panel");
+const helpModalEl = document.getElementById("help-modal");
+const settingsModalEl = document.getElementById("settings-modal");
 const tokenInputEl = document.getElementById("token-input");
-const guildInputEl = document.getElementById("guild-input");
+const guildSelectorEl = document.getElementById("guild-selector");
 const saveConfigEl = document.getElementById("save-config");
 const stopMonitorEl = document.getElementById("stop-monitor");
 const configHelpEl = document.getElementById("config-help");
 const monitorBadgeEl = document.getElementById("monitor-badge");
+const toggleConfigEl = document.getElementById("toggle-config");
+const toggleConfigLabelEl = document.getElementById("toggle-config-label");
+const configSummaryEl = document.getElementById("config-summary");
+const configSummaryTextEl = document.getElementById("config-summary-text");
+const configFormEl = document.getElementById("config-form");
+const formatDataToggleEl = document.getElementById("format-data-toggle");
+const themeToggleLabelEl = document.getElementById("theme-toggle-label");
 const mentionPattern = /(@everyone|@here|@\S+)/g;
 const singleMentionPattern = /^(@everyone|@here|@\S+)$/;
 
@@ -38,31 +66,201 @@ function eventClassName(eventType) {
 function applyTheme(theme) {
   state.theme = theme === "light" ? "light" : "dark";
   document.body.classList.toggle("light-mode", state.theme === "light");
-  themeToggleEl.textContent = state.theme === "light" ? "Dark Mode" : "Light Mode";
+  themeToggleLabelEl.textContent = state.theme === "light" ? "Dark Mode" : "Light Mode";
   localStorage.setItem("viewer-theme", state.theme);
 }
 
-function guildIdsToText(guildIds) {
-  return guildIds.join("\n");
+function applyFormatData(enabled) {
+  state.formatData = Boolean(enabled);
+  formatDataToggleEl.checked = state.formatData;
+  localStorage.setItem("viewer-format-data", state.formatData ? "1" : "0");
 }
 
-function parseGuildIdsFromInput() {
-  return guildInputEl.value
-    .split(/[\n,]+/)
-    .map((value) => value.trim())
+function applySidebarState(collapsed) {
+  state.sidebarCollapsed = Boolean(collapsed);
+  document.querySelector(".app-shell").classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
+  toggleSidebarEl.textContent = state.sidebarCollapsed ? ">" : "<";
+  localStorage.setItem("viewer-sidebar-collapsed", state.sidebarCollapsed ? "1" : "0");
+}
+
+function applySettingsState(open) {
+  state.settingsOpen = Boolean(open);
+  settingsModalEl.classList.toggle("hidden", !state.settingsOpen);
+  if (state.settingsOpen) {
+    applyHelpState(false);
+  }
+}
+
+function applyHelpState(open) {
+  state.helpOpen = Boolean(open);
+  helpModalEl.classList.toggle("hidden", !state.helpOpen);
+  if (state.helpOpen) {
+    settingsModalEl.classList.add("hidden");
+    state.settingsOpen = false;
+  }
+}
+
+function getSelectedGuildIds() {
+  return Array.from(guildSelectorEl.querySelectorAll("input[type='checkbox']:checked"))
+    .map((input) => input.value)
     .filter(Boolean);
 }
 
+function getEffectiveGuildSelection() {
+  return state.guildSelectionDirty ? state.draftGuildIds : state.configuredGuildIds;
+}
+
+function refreshConfigVisibility() {
+  const guildCount = getEffectiveGuildSelection().length;
+  const hasConfig = tokenInputEl.value.trim() && guildCount > 0;
+  const showCollapsed = hasConfig && !state.configExpanded;
+
+  configSummaryEl.classList.toggle("hidden", !showCollapsed);
+  configFormEl.classList.toggle("hidden", showCollapsed);
+  toggleConfigEl.classList.toggle("hidden", !hasConfig);
+  toggleConfigLabelEl.textContent = showCollapsed ? "Edit" : "Hide";
+
+  if (hasConfig) {
+    configSummaryTextEl.textContent = `Saved token with ${guildCount} guild${guildCount === 1 ? "" : "s"} configured.`;
+  } else if (tokenInputEl.value.trim()) {
+    configSummaryTextEl.textContent = "Token saved. Choose which discovered servers to monitor.";
+  }
+}
+
+function initialsFromServerName(name) {
+  return name
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "SC";
+}
+
+function mergeGuilds(logGuilds, monitorGuilds) {
+  const guildMap = new Map();
+
+  for (const guild of logGuilds || []) {
+    guildMap.set(guild.id, { ...guild });
+  }
+
+  for (const guild of monitorGuilds || []) {
+    const existing = guildMap.get(String(guild.id)) || guildMap.get(guild.id);
+    guildMap.set(String(guild.id), {
+      id: String(guild.id),
+      name: guild.name || existing?.name || "Unknown Server",
+      icon_url: guild.icon_url || existing?.icon_url || null,
+    });
+  }
+
+  return Array.from(guildMap.values());
+}
+
+function getMonitorGuilds(monitor) {
+  return (monitor?.guilds || []).map((guild) => ({
+    id: String(guild.id),
+    name: guild.name || "Unknown Server",
+    icon_url: guild.icon_url || null,
+  }));
+}
+
+function renderGuildSelector(guilds) {
+  guildSelectorEl.innerHTML = "";
+  const selectedGuildIds = new Set(getEffectiveGuildSelection().map(String));
+
+  if (!tokenInputEl.value.trim()) {
+    guildSelectorEl.innerHTML = '<p class="sidebar-meta">Save a bot token first to discover available servers.</p>';
+    return;
+  }
+
+  if (guilds.length === 0) {
+    guildSelectorEl.innerHTML = '<p class="sidebar-meta">No servers discovered yet. Save and start to connect the bot and load its guilds.</p>';
+    return;
+  }
+
+  for (const guild of guilds) {
+    const option = document.createElement("label");
+    option.className = "guild-option";
+    option.innerHTML = `
+      <input type="checkbox" value="${guild.id}">
+      <span class="guild-option-label">
+        <span class="guild-option-name"></span>
+        <span class="guild-option-meta">${guild.id}</span>
+      </span>
+    `;
+    option.querySelector(".guild-option-name").textContent = guild.name;
+    const input = option.querySelector("input");
+    input.checked = selectedGuildIds.has(String(guild.id));
+    input.addEventListener("change", () => {
+      state.draftGuildIds = getSelectedGuildIds();
+      state.guildSelectionDirty = true;
+      refreshConfigVisibility();
+    });
+    guildSelectorEl.appendChild(option);
+  }
+}
+
+function renderServers(guilds) {
+  serverListEl.innerHTML = "";
+
+  if (guilds.length === 0) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "server-avatar";
+    placeholder.textContent = "GM";
+    serverListEl.appendChild(placeholder);
+    return;
+  }
+
+  for (const guild of guilds) {
+    const button = document.createElement("button");
+    button.className = "server-button";
+    if (guild.id === state.selectedGuild) {
+      button.classList.add("active");
+    }
+
+    const avatar = document.createElement("div");
+    avatar.className = "server-avatar";
+    if (guild.icon_url) {
+      const image = document.createElement("img");
+      image.src = guild.icon_url;
+      image.alt = guild.name;
+      avatar.appendChild(image);
+    } else {
+      avatar.textContent = initialsFromServerName(guild.name);
+    }
+
+    button.title = guild.name;
+    button.appendChild(avatar);
+    button.addEventListener("click", () => {
+      state.selectedGuild = guild.id;
+      state.selectedChannel = null;
+      fetchState();
+    });
+    serverListEl.appendChild(button);
+  }
+}
+
 function updateMonitorUI(monitor) {
-  const safeMonitor = monitor || { running: false, error: null, guild_ids: [] };
-  const hasConfig = tokenInputEl.value.trim() && parseGuildIdsFromInput().length > 0;
+  const safeMonitor = monitor || { running: false, error: null, guild_ids: [], guilds: [] };
+  const hasConfig = tokenInputEl.value.trim() && getEffectiveGuildSelection().length > 0;
+  const monitoredGuilds = (safeMonitor.guilds || []).filter((guild) => guild.monitored);
   monitorBadgeEl.classList.remove("live", "error");
 
-  if (safeMonitor.running) {
+  if (safeMonitor.running && monitoredGuilds.length > 0) {
     monitorBadgeEl.textContent = "Live";
     monitorBadgeEl.classList.add("live");
     statusTextEl.textContent = "Monitoring live";
-    configHelpEl.textContent = `Watching ${safeMonitor.guild_ids.length} guild${safeMonitor.guild_ids.length === 1 ? "" : "s"}.`;
+    configHelpEl.textContent = `Watching ${monitoredGuilds.length} guild${monitoredGuilds.length === 1 ? "" : "s"}.`;
+    refreshConfigVisibility();
+    return;
+  }
+
+  if (safeMonitor.running) {
+    monitorBadgeEl.textContent = "Connected";
+    statusTextEl.textContent = hasConfig ? "Connected, no guilds available" : "Connected for discovery";
+    configHelpEl.textContent = hasConfig
+      ? "The bot is connected, but none of the selected servers are currently available to monitor."
+      : "The bot is connected. Choose one or more discovered servers to begin monitoring.";
+    refreshConfigVisibility();
     return;
   }
 
@@ -71,6 +269,7 @@ function updateMonitorUI(monitor) {
     monitorBadgeEl.classList.add("error");
     statusTextEl.textContent = "Monitor error";
     configHelpEl.textContent = safeMonitor.error;
+    refreshConfigVisibility();
     return;
   }
 
@@ -79,6 +278,7 @@ function updateMonitorUI(monitor) {
   configHelpEl.textContent = hasConfig
     ? "Saved locally. Press Save and Start to reconnect."
     : "Enter a bot token and one or more guild IDs to begin.";
+  refreshConfigVisibility();
 }
 
 function formatTimestamp(timestamp) {
@@ -117,7 +317,8 @@ function groupChannels(channels) {
 }
 
 function renderChannels(channels) {
-  const groups = groupChannels(channels);
+  const visibleChannels = channels.filter((channel) => channel.guild_id === state.selectedGuild);
+  const groups = groupChannels(visibleChannels);
   channelGroupsEl.innerHTML = "";
 
   if (groups.size === 0) {
@@ -158,8 +359,10 @@ function renderChannels(channels) {
 
 function renderMessages(messages, channels) {
   const selected = channels.find((channel) => channel.id === state.selectedChannel);
+  const selectedGuild = state.guilds.find((guild) => guild.id === state.selectedGuild);
+  sidebarGuildTitleEl.textContent = selectedGuild ? selectedGuild.name : "Guild Logs";
   channelTitleEl.textContent = selected
-    ? `${selected.category} / #${selected.name}`
+    ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
     : "No channel selected";
   messageCountEl.textContent = `${messages.length} result${messages.length === 1 ? "" : "s"}`;
 
@@ -177,7 +380,7 @@ function renderMessages(messages, channels) {
 
   for (const message of messages) {
     const row = document.createElement("article");
-    row.className = "message-row";
+    row.className = `message-row${message.mentions_me ? " mention-highlight" : ""}`;
     row.innerHTML = `
       <div class="avatar">${initialsFromName(message.author)}</div>
       <div>
@@ -201,6 +404,77 @@ function renderMessages(messages, channels) {
 function renderMessageContent(container, content) {
   container.textContent = "";
 
+  if (state.formatData) {
+    renderFormattedMessageContent(container, content);
+    return;
+  }
+
+  renderPlainMessageContent(container, content);
+}
+
+function renderFormattedMessageContent(container, content) {
+  const segments = content.split(" | ").filter(Boolean);
+  let renderedAny = false;
+
+  for (const segment of segments) {
+    if (segment.startsWith("[attachments] ")) {
+      const attachmentUrls = segment.replace("[attachments] ", "").split(", ").filter(Boolean);
+      for (const url of attachmentUrls) {
+        const block = document.createElement("div");
+        block.className = "message-aux-block";
+
+        const label = document.createElement("span");
+        label.className = "message-aux-label";
+        label.textContent = "Attachment";
+
+        const link = document.createElement("a");
+        link.className = "message-link";
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noreferrer noopener";
+        link.textContent = url;
+
+        block.appendChild(label);
+        block.appendChild(link);
+        container.appendChild(block);
+        renderedAny = true;
+      }
+      continue;
+    }
+
+    if (segment.startsWith("[embeds] ")) {
+      const badge = document.createElement("div");
+      badge.className = "message-aux-block";
+
+      const label = document.createElement("span");
+      label.className = "message-aux-label";
+      label.textContent = "Embed";
+
+      const text = document.createElement("span");
+      text.textContent = segment.replace("[embeds] ", "");
+
+      badge.appendChild(label);
+      badge.appendChild(text);
+      container.appendChild(badge);
+      renderedAny = true;
+      continue;
+    }
+
+    const textBlock = document.createElement("div");
+    textBlock.className = "message-text-block";
+    renderPlainMessageContent(textBlock, segment);
+    container.appendChild(textBlock);
+    renderedAny = true;
+  }
+
+  if (!renderedAny) {
+    renderPlainMessageContent(container, content);
+  }
+}
+
+function renderPlainMessageContent(container, content) {
+  container.textContent = "";
+
   const parts = content.split(mentionPattern);
   for (const part of parts) {
     if (!part) {
@@ -221,6 +495,9 @@ function renderMessageContent(container, content) {
 
 async function fetchState() {
   const params = new URLSearchParams();
+  if (state.selectedGuild) {
+    params.set("guild", state.selectedGuild);
+  }
   if (state.selectedChannel) {
     params.set("channel", state.selectedChannel);
   }
@@ -234,6 +511,10 @@ async function fetchState() {
   }
 
   const payload = await response.json();
+  const monitorGuilds = getMonitorGuilds(payload.monitor);
+  const guilds = mergeGuilds(payload.guilds, monitorGuilds);
+  state.guilds = guilds;
+  state.selectedGuild = payload.selected_guild;
   state.selectedChannel = payload.selected_channel;
   state.lastUpdated = payload.last_updated;
   state.searchQuery = payload.search_query;
@@ -249,6 +530,8 @@ async function fetchState() {
     : "No updates yet";
 
   updateMonitorUI(payload.monitor);
+  renderGuildSelector(monitorGuilds);
+  renderServers(guilds);
   renderChannels(payload.channels);
   renderMessages(payload.messages, payload.channels);
 }
@@ -261,20 +544,17 @@ async function fetchConfig() {
 
   const payload = await response.json();
   tokenInputEl.value = payload.config.token || "";
-  guildInputEl.value = guildIdsToText(payload.config.guild_ids || []);
+  state.configuredGuildIds = (payload.config.guild_ids || []).map((guildId) => String(guildId));
+  state.draftGuildIds = [...state.configuredGuildIds];
+  state.guildSelectionDirty = false;
+  state.configExpanded = !(payload.config.token && (payload.config.guild_ids || []).length > 0);
+  applySettingsState(!payload.config.token || (payload.config.guild_ids || []).length === 0);
   updateMonitorUI(payload.monitor);
+  renderGuildSelector(getMonitorGuilds(payload.monitor));
 }
 
 async function saveConfigAndStart() {
-  const guildIds = parseGuildIdsFromInput();
-  const invalidGuild = guildIds.find((value) => !/^\d+$/.test(value));
-  if (invalidGuild) {
-    monitorBadgeEl.textContent = "Error";
-    monitorBadgeEl.classList.remove("live");
-    monitorBadgeEl.classList.add("error");
-    configHelpEl.textContent = `Invalid guild ID: ${invalidGuild}`;
-    return;
-  }
+  const guildIds = getSelectedGuildIds();
 
   const response = await fetch("/api/config", {
     method: "POST",
@@ -291,6 +571,11 @@ async function saveConfigAndStart() {
   }
 
   const payload = await response.json();
+  state.configuredGuildIds = guildIds;
+  state.draftGuildIds = [...guildIds];
+  state.guildSelectionDirty = false;
+  state.configExpanded = false;
+  applySettingsState(false);
   updateMonitorUI(payload.monitor);
 }
 
@@ -348,7 +633,78 @@ stopMonitorEl.addEventListener("click", () => {
   });
 });
 
+toggleConfigEl.addEventListener("click", () => {
+  state.configExpanded = !state.configExpanded;
+  if (!state.configExpanded && !state.guildSelectionDirty) {
+    state.draftGuildIds = [...state.configuredGuildIds];
+  }
+  refreshConfigVisibility();
+});
+
+tokenInputEl.addEventListener("input", () => {
+  refreshConfigVisibility();
+});
+
+formatDataToggleEl.addEventListener("change", (event) => {
+  applyFormatData(event.target.checked);
+  fetchState().catch((error) => {
+    statusTextEl.textContent = "Connection issue";
+    refreshTextEl.textContent = error.message;
+  });
+});
+
+toggleSidebarEl.addEventListener("click", () => {
+  applySidebarState(!state.sidebarCollapsed);
+});
+
+openSettingsEl.addEventListener("click", () => {
+  applySettingsState(!state.settingsOpen);
+});
+
+closeSettingsEl.addEventListener("click", () => {
+  applySettingsState(false);
+});
+
+openHelpEl.addEventListener("click", () => {
+  applyHelpState(!state.helpOpen);
+});
+
+closeHelpEl.addEventListener("click", () => {
+  applyHelpState(false);
+});
+
+settingsModalEl.addEventListener("click", (event) => {
+  if (event.target === settingsModalEl) {
+    applySettingsState(false);
+  }
+});
+
+helpModalEl.addEventListener("click", (event) => {
+  if (event.target === helpModalEl) {
+    applyHelpState(false);
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  if (state.helpOpen) {
+    applyHelpState(false);
+    return;
+  }
+
+  if (state.settingsOpen) {
+    applySettingsState(false);
+  }
+});
+
 applyTheme(localStorage.getItem("viewer-theme") || "dark");
+applyFormatData(localStorage.getItem("viewer-format-data") !== "0");
+applySidebarState(localStorage.getItem("viewer-sidebar-collapsed") === "1");
+applyHelpState(false);
+applySettingsState(false);
 fetchConfig().catch((error) => {
   configHelpEl.textContent = error.message;
 });

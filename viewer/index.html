@@ -12,68 +12,155 @@
 <body>
   <div class="app-shell">
     <aside class="server-rail">
-      <div class="server-badge">GM</div>
-      <div class="server-pill"></div>
+      <div class="server-rail-header">SC</div>
+      <nav id="server-list" class="server-list"></nav>
     </aside>
 
     <aside class="channel-sidebar">
       <div class="sidebar-header">
-        <p class="eyebrow">Live Monitor</p>
-        <h1>Guild Logs</h1>
-        <p id="log-path" class="sidebar-meta">Waiting for data...</p>
-      </div>
-
-      <section class="config-card">
-        <div class="config-card-header">
-          <div>
-            <p class="eyebrow">Monitor Setup</p>
-            <h3>Connection</h3>
-          </div>
-          <span id="monitor-badge" class="monitor-badge">Idle</span>
-        </div>
-
-        <label class="field-label" for="token-input">Bot Token</label>
-        <input id="token-input" class="config-input" type="password" placeholder="Paste your Discord bot token">
-
-        <label class="field-label" for="guild-input">Guild IDs</label>
-        <textarea id="guild-input" class="config-textarea" rows="4" placeholder="One guild ID per line or comma-separated"></textarea>
-
-        <div class="config-actions">
-          <button id="save-config" class="primary-button" type="button">Save and Start</button>
-          <button id="stop-monitor" class="secondary-button" type="button">Stop</button>
-        </div>
-
-        <p id="config-help" class="sidebar-meta">Local-only settings. Saved on this machine for the launcher to reuse.</p>
-      </section>
-
-      <div class="status-card">
-        <div>
+        <p class="eyebrow">Channel Browser</p>
+        <h1 id="sidebar-guild-title">Guild Logs</h1>
+        <div class="sidebar-status-line">
           <span class="status-dot"></span>
           <span id="status-text">Connecting</span>
         </div>
-        <span id="refresh-text" class="refresh-text">Polling...</span>
       </div>
 
       <nav id="channel-groups" class="channel-groups"></nav>
     </aside>
+    <button id="toggle-sidebar" class="sidebar-edge-toggle" type="button" aria-label="Toggle monitor sidebar">
+      <span class="button-icon" aria-hidden="true"><</span>
+    </button>
 
     <main class="chat-panel">
       <header class="chat-header">
-        <div>
+        <div class="header-main">
           <p class="eyebrow">Selected Channel</p>
           <h2 id="channel-title">No channel selected</h2>
+          <p id="log-path" class="header-subtle">Waiting for data...</p>
+        </div>
+        <div class="header-top-actions">
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">
+            <span class="button-icon" aria-hidden="true">◐</span>
+            <span id="theme-toggle-label">Light Mode</span>
+          </button>
+          <button id="open-help" class="settings-button" type="button" aria-label="Open help">?</button>
+          <button id="open-settings" class="settings-button" type="button" aria-label="Open settings">&#9881;</button>
         </div>
         <div class="header-controls">
           <label class="search-wrap" for="search-input">
             <span class="search-icon">/</span>
             <input id="search-input" type="search" placeholder="Search messages, authors, events...">
           </label>
-          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">Light Mode</button>
         </div>
         <div class="header-meta">
+          <span id="refresh-text">Polling...</span>
           <span id="message-count">0 messages</span>
         </div>
       </header>
+
+      <div id="settings-modal" class="modal-backdrop hidden">
+        <section id="settings-panel" class="settings-panel modal-panel">
+          <div class="settings-panel-header">
+            <div>
+              <p class="eyebrow">Monitor Setup</p>
+              <h3>Connection</h3>
+            </div>
+            <div class="config-card-tools">
+              <button id="toggle-config" class="icon-button hidden" type="button">
+                <span class="button-icon" aria-hidden="true">✎</span>
+                <span id="toggle-config-label">Edit</span>
+              </button>
+              <span id="monitor-badge" class="monitor-badge">Idle</span>
+              <button id="close-settings" class="icon-button" type="button">
+                <span class="button-icon" aria-hidden="true">✕</span>
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="config-summary" class="config-summary hidden">
+            <p id="config-summary-text" class="sidebar-meta">Saved monitor settings.</p>
+          </div>
+
+          <div id="config-form" class="config-form">
+            <label class="field-label" for="token-input">Bot Token</label>
+            <input id="token-input" class="config-input" type="password" placeholder="Paste your Discord bot token">
+
+            <div class="guild-selector-header">
+              <label class="field-label" for="guild-selector">Servers To Monitor</label>
+              <span class="sidebar-meta">Choose from the guilds this bot can already see.</span>
+            </div>
+            <div id="guild-selector" class="guild-selector"></div>
+
+            <div class="viewer-preferences">
+              <p class="field-label">Viewer Preferences</p>
+              <label class="setting-toggle">
+                <input id="format-data-toggle" type="checkbox">
+                <span>
+                  <strong>Format logged data</strong>
+                  <span class="sidebar-meta">Show attachments and logged markers in a cleaner message layout.</span>
+                </span>
+              </label>
+            </div>
+
+            <div class="config-actions">
+              <button id="save-config" class="primary-button" type="button">
+                <span class="button-icon" aria-hidden="true">▶</span>
+                <span>Save and Start</span>
+              </button>
+              <button id="stop-monitor" class="secondary-button" type="button">
+                <span class="button-icon" aria-hidden="true">■</span>
+                <span>Stop</span>
+              </button>
+            </div>
+          </div>
+
+          <p id="config-help" class="sidebar-meta">Local-only settings. Saved on this machine for the launcher to reuse.</p>
+        </section>
+      </div>
+
+      <div id="help-modal" class="modal-backdrop hidden">
+        <section id="help-panel" class="settings-panel modal-panel">
+          <div class="settings-panel-header">
+            <div>
+              <p class="eyebrow">Help</p>
+              <h3>Using SpyCord</h3>
+            </div>
+            <button id="close-help" class="icon-button" type="button">
+              <span class="button-icon" aria-hidden="true">✕</span>
+              <span>Close</span>
+            </button>
+          </div>
+
+          <div class="help-grid">
+            <div class="help-card">
+              <h4>Server Rail</h4>
+              <p>The far-left column shows the servers this bot can monitor. Click a server icon to switch the message view to that server.</p>
+            </div>
+            <div class="help-card">
+              <h4>Channel Browser</h4>
+              <p>The middle sidebar lists only the channels for the selected server. Use the edge button to collapse it for more room.</p>
+            </div>
+            <div class="help-card">
+              <h4>Settings</h4>
+              <p>Use the gear icon to save your bot token and choose which discovered servers should actually be monitored.</p>
+            </div>
+            <div class="help-card">
+              <h4>Search</h4>
+              <p>The search bar filters the current view by message text, usernames, channels, categories, and event labels.</p>
+            </div>
+            <div class="help-card">
+              <h4>Mentions</h4>
+              <p>Messages that mention the monitored account are highlighted in yellow, similar to Discord mention highlights.</p>
+            </div>
+            <div class="help-card">
+              <h4>Live Updates</h4>
+              <p>SpyCord refreshes automatically. The timestamp in the header shows when the viewer last refreshed from the log.</p>
+            </div>
+          </div>
+        </section>
+      </div>
 
       <section id="empty-state" class="empty-state hidden">
         <div class="empty-card">
