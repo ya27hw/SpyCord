@@ -89,44 +89,6 @@ class GuildMonitor(discord.Client):
             content=content,
         )
 
-    async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        if self.should_ignore_message(after):
-            return
-
-        before_content = self.stringify_message_content(before)
-        after_content = self.stringify_message_content(after)
-        if before_content == after_content:
-            return
-
-        channel_name = getattr(after.channel, "name", str(after.channel))
-        category_name = getattr(getattr(after.channel, "category", None), "name", "No Category")
-        edited_at = (after.edited_at or after.created_at).isoformat()
-
-        self.log_entry(
-            event_type="EDIT",
-            timestamp=edited_at,
-            category_name=category_name,
-            channel_name=channel_name,
-            author=str(after.author),
-            content=f"{before_content} -> {after_content}",
-        )
-
-    async def on_message_delete(self, message: discord.Message):
-        if self.should_ignore_message(message):
-            return
-
-        channel_name = getattr(message.channel, "name", str(message.channel))
-        category_name = getattr(getattr(message.channel, "category", None), "name", "No Category")
-
-        self.log_entry(
-            event_type="DELETE",
-            timestamp=discord.utils.utcnow().isoformat(),
-            category_name=category_name,
-            channel_name=channel_name,
-            author=str(message.author),
-            content=self.stringify_message_content(message),
-        )
-
 
 def build_logger(log_file: str | None) -> logging.Logger:
     logger = logging.getLogger("guild-monitor")
