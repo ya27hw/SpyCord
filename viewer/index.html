@@ -23,6 +23,29 @@
         <p id="log-path" class="sidebar-meta">Waiting for data...</p>
       </div>
 
+      <section class="config-card">
+        <div class="config-card-header">
+          <div>
+            <p class="eyebrow">Monitor Setup</p>
+            <h3>Connection</h3>
+          </div>
+          <span id="monitor-badge" class="monitor-badge">Idle</span>
+        </div>
+
+        <label class="field-label" for="token-input">Bot Token</label>
+        <input id="token-input" class="config-input" type="password" placeholder="Paste your Discord bot token">
+
+        <label class="field-label" for="guild-input">Guild IDs</label>
+        <textarea id="guild-input" class="config-textarea" rows="4" placeholder="One guild ID per line or comma-separated"></textarea>
+
+        <div class="config-actions">
+          <button id="save-config" class="primary-button" type="button">Save and Start</button>
+          <button id="stop-monitor" class="secondary-button" type="button">Stop</button>
+        </div>
+
+        <p id="config-help" class="sidebar-meta">Local-only settings. Saved on this machine for the launcher to reuse.</p>
+      </section>
+
       <div class="status-card">
         <div>
           <span class="status-dot"></span>
@@ -42,7 +65,7 @@
         </div>
         <div class="header-controls">
           <label class="search-wrap" for="search-input">
-            <span class="search-icon">⌕</span>
+            <span class="search-icon">/</span>
             <input id="search-input" type="search" placeholder="Search messages, authors, events...">
           </label>
           <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">Light Mode</button>

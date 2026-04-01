@@ -134,6 +134,99 @@ body {
   color: var(--muted);
 }
 
+.config-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.config-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.config-card-header h3 {
+  margin: 0;
+}
+
+.monitor-badge {
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+}
+
+.monitor-badge.live {
+  background: rgba(87, 242, 135, 0.16);
+  color: #57f287;
+}
+
+.monitor-badge.error {
+  background: rgba(255, 107, 107, 0.16);
+  color: #ff9d9d;
+}
+
+.field-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.config-input,
+.config-textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--search-bg);
+  color: var(--text);
+  padding: 12px 14px;
+  font: inherit;
+  outline: none;
+}
+
+.config-textarea {
+  resize: vertical;
+  min-height: 92px;
+}
+
+.config-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.primary-button,
+.secondary-button {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 11px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, #58a6ff, #2d7de0);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.secondary-button {
+  background: var(--theme-button-bg);
+  color: var(--theme-button-text);
+}
+
+.primary-button:hover,
+.secondary-button:hover {
+  transform: translateY(-1px);
+}
+
 .status-card {
   background: linear-gradient(180deg, rgba(88, 166, 255, 0.12), rgba(88, 166, 255, 0.04));
   border: 1px solid rgba(88, 166, 255, 0.2);
@@ -353,6 +446,21 @@ body {
   line-height: 1.5;
 }
 
+.mention-pill {
+  display: inline-block;
+  padding: 1px 7px;
+  margin: 0 2px;
+  border-radius: 8px;
+  background: rgba(88, 166, 255, 0.18);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+body.light-mode .mention-pill {
+  background: rgba(45, 125, 224, 0.12);
+  color: #215fb0;
+}
+
 .empty-state {
   display: grid;
   place-items: center;
@@ -406,5 +514,9 @@ body {
   .search-wrap {
     min-width: 0;
     width: 100%;
+  }
+
+  .config-actions {
+    flex-direction: column;
   }
 }

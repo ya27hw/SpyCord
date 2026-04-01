@@ -1,25 +1,32 @@
 import argparse
 import logging
 from pathlib import Path
+from typing import Iterable
 
 import discord
 
 
 class GuildMonitor(discord.Client):
-    def __init__(self, *, target_guild_id: int, logger: logging.Logger, **kwargs):
+    def __init__(self, *, target_guild_ids: Iterable[int], logger: logging.Logger, **kwargs):
         super().__init__(**kwargs)
-        self.target_guild_id = target_guild_id
+        self.target_guild_ids = {int(guild_id) for guild_id in target_guild_ids}
         self.logger = logger
 
     async def on_ready(self):
         self.logger.info("Logged in as %s (%s)", self.user, self.user.id)
-        guild = self.get_guild(self.target_guild_id)
-        if guild is None:
-            self.logger.error("Guild %s was not found or is unavailable.", self.target_guild_id)
+        found_guilds = [guild for guild in self.guilds if guild.id in self.target_guild_ids]
+        missing_guilds = sorted(self.target_guild_ids - {guild.id for guild in found_guilds})
+
+        if found_guilds:
+            for guild in found_guilds:
+                self.logger.info("Monitoring guild: %s (%s)", guild.name, guild.id)
+
+        if missing_guilds:
+            self.logger.error("Guild(s) unavailable: %s", ", ".join(str(guild_id) for guild_id in missing_guilds))
+
+        if not found_guilds:
             await self.close()
             return
-
-        self.logger.info("Monitoring guild: %s (%s)", guild.name, guild.id)
 
     def log_entry(
         self,
@@ -42,7 +49,7 @@ class GuildMonitor(discord.Client):
         )
 
     def should_ignore_message(self, message: discord.Message) -> bool:
-        if message.guild is None or message.guild.id != self.target_guild_id:
+        if message.guild is None or message.guild.id not in self.target_guild_ids:
             return True
         return bool(message.author and message.author.bot)
 
@@ -50,8 +57,9 @@ class GuildMonitor(discord.Client):
     def stringify_message_content(message: discord.Message) -> str:
         parts: list[str] = []
 
-        if message.content:
-            parts.append(message.content)
+        base_content = message.clean_content or message.content
+        if base_content:
+            parts.append(base_content)
 
         if message.attachments:
             attachments = ", ".join(attachment.url for attachment in message.attachments)
@@ -151,10 +159,10 @@ def build_intents() -> discord.Intents:
     return intents
 
 
-def create_client(guild_id: int, log_file: str | None) -> GuildMonitor:
+def create_client(guild_ids: Iterable[int], log_file: str | None) -> GuildMonitor:
     logger = build_logger(log_file)
     return GuildMonitor(
-        target_guild_id=guild_id,
+        target_guild_ids=guild_ids,
         logger=logger,
         intents=build_intents(),
     )
@@ -173,10 +181,11 @@ def parse_args():
     parser.add_argument(
         "-g",
         "--guild-id",
-        dest="guild_id",
+        dest="guild_ids",
         type=int,
         required=True,
-        help="Guild ID to monitor",
+        action="append",
+        help="Guild ID to monitor. Repeat the flag to watch multiple guilds.",
     )
     parser.add_argument(
         "-l",
@@ -189,7 +198,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    client = create_client(args.guild_id, args.log_file)
+    client = create_client(args.guild_ids, args.log_file)
     client.run(args.token)
 
 
