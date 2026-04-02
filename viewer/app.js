@@ -30,6 +30,7 @@ const state = {
   unreadTrackingReady: false,
   webhookEnabled: false,
   channelFilterOpen: false,
+  channelActionsMenuOpen: false,
   keywords: [],
 };
 
@@ -65,6 +66,8 @@ const webhookInputEl = document.getElementById("webhook-input");
 const keywordsInputEl = document.getElementById("keywords-input");
 const openChannelFilterEl = document.getElementById("open-channel-filter");
 const addGuildMonitorEl = document.getElementById("add-guild-monitor");
+const toggleChannelActionsEl = document.getElementById("toggle-channel-actions");
+const channelActionsMenuEl = document.getElementById("channel-actions-menu");
 const closeChannelFilterEl = document.getElementById("close-channel-filter");
 const applyChannelFilterEl = document.getElementById("apply-channel-filter");
 const channelFilterTitleEl = document.getElementById("channel-filter-title");
@@ -86,6 +89,15 @@ const appShellEl = document.querySelector(".app-shell");
 const mentionPattern = /(@everyone|@here|@\S+)/g;
 const singleMentionPattern = /^(@everyone|@here|@\S+)$/;
 let deferredMessageRender = null;
+
+function setButtonLoading(buttonEl, loading) {
+  if (!buttonEl) {
+    return;
+  }
+  buttonEl.disabled = Boolean(loading);
+  buttonEl.classList.toggle("is-loading", Boolean(loading));
+  buttonEl.setAttribute("aria-busy", loading ? "true" : "false");
+}
 
 function eventClassName(eventType) {
   switch (eventType) {
@@ -141,6 +153,7 @@ function applyMobileChannelsState(open) {
 function applySettingsState(open) {
   state.settingsOpen = Boolean(open);
   settingsModalEl.classList.toggle("hidden", !state.settingsOpen);
+  applyChannelActionsMenuState(false);
   if (state.settingsOpen) {
     applyHelpState(false);
     applyChannelFilterState(false);
@@ -150,6 +163,7 @@ function applySettingsState(open) {
 function applyHelpState(open) {
   state.helpOpen = Boolean(open);
   helpModalEl.classList.toggle("hidden", !state.helpOpen);
+  applyChannelActionsMenuState(false);
   if (state.helpOpen) {
     settingsModalEl.classList.add("hidden");
     channelFilterModalEl.classList.add("hidden");
@@ -161,10 +175,17 @@ function applyHelpState(open) {
 function applyChannelFilterState(open) {
   state.channelFilterOpen = Boolean(open);
   channelFilterModalEl.classList.toggle("hidden", !state.channelFilterOpen);
+  applyChannelActionsMenuState(false);
   if (state.channelFilterOpen) {
     applyHelpState(false);
     applySettingsState(false);
   }
+}
+
+function applyChannelActionsMenuState(open) {
+  state.channelActionsMenuOpen = Boolean(open);
+  channelActionsMenuEl.classList.toggle("hidden", !state.channelActionsMenuOpen);
+  toggleChannelActionsEl.setAttribute("aria-expanded", state.channelActionsMenuOpen ? "true" : "false");
 }
 
 function getSelectedGuildIds() {
@@ -1172,12 +1193,17 @@ themeToggleEl.addEventListener("click", () => {
 });
 
 saveConfigEl.addEventListener("click", () => {
-  saveConfigAndStart().catch((error) => {
-    monitorBadgeEl.textContent = "Error";
-    monitorBadgeEl.classList.remove("live");
-    monitorBadgeEl.classList.add("error");
-    configHelpEl.textContent = error.message;
-  });
+  setButtonLoading(saveConfigEl, true);
+  saveConfigAndStart()
+    .catch((error) => {
+      monitorBadgeEl.textContent = "Error";
+      monitorBadgeEl.classList.remove("live");
+      monitorBadgeEl.classList.add("error");
+      configHelpEl.textContent = error.message;
+    })
+    .finally(() => {
+      setButtonLoading(saveConfigEl, false);
+    });
 });
 
 stopMonitorEl.addEventListener("click", () => {
@@ -1243,11 +1269,13 @@ closeHelpEl.addEventListener("click", () => {
 });
 
 openChannelFilterEl.addEventListener("click", () => {
+  applyChannelActionsMenuState(false);
   renderChannelFilterModal();
   applyChannelFilterState(true);
 });
 
 addGuildMonitorEl.addEventListener("click", () => {
+  applyChannelActionsMenuState(false);
   addSelectedGuildToMonitoring().catch((error) => {
     monitorBadgeEl.textContent = "Error";
     monitorBadgeEl.classList.remove("live");
@@ -1256,15 +1284,24 @@ addGuildMonitorEl.addEventListener("click", () => {
   });
 });
 
+toggleChannelActionsEl.addEventListener("click", () => {
+  applyChannelActionsMenuState(!state.channelActionsMenuOpen);
+});
+
 closeChannelFilterEl.addEventListener("click", () => {
   applyChannelFilterState(false);
 });
 
 applyChannelFilterEl.addEventListener("click", () => {
-  saveChannelFilterFromModal().catch((error) => {
-    configHelpEl.textContent = error.message;
-    applyChannelFilterState(false);
-  });
+  setButtonLoading(applyChannelFilterEl, true);
+  saveChannelFilterFromModal()
+    .catch((error) => {
+      configHelpEl.textContent = error.message;
+      applyChannelFilterState(false);
+    })
+    .finally(() => {
+      setButtonLoading(applyChannelFilterEl, false);
+    });
 });
 
 settingsModalEl.addEventListener("click", (event) => {
@@ -1285,8 +1322,24 @@ channelFilterModalEl.addEventListener("click", (event) => {
   }
 });
 
+document.addEventListener("click", (event) => {
+  if (!state.channelActionsMenuOpen) {
+    return;
+  }
+  const target = event.target;
+  if (channelActionsMenuEl.contains(target) || toggleChannelActionsEl.contains(target)) {
+    return;
+  }
+  applyChannelActionsMenuState(false);
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
+    return;
+  }
+
+  if (state.channelActionsMenuOpen) {
+    applyChannelActionsMenuState(false);
     return;
   }
 
@@ -1310,6 +1363,7 @@ document.addEventListener("selectionchange", () => {
 });
 
 window.addEventListener("resize", () => {
+  applyChannelActionsMenuState(false);
   if (!isMobileViewport()) {
     applyMobileServersState(false);
     applyMobileChannelsState(false);
@@ -1322,6 +1376,7 @@ applySidebarState(localStorage.getItem("viewer-sidebar-collapsed") === "1");
 applyHelpState(false);
 applySettingsState(false);
 applyChannelFilterState(false);
+applyChannelActionsMenuState(false);
 fetchConfig().catch((error) => {
   configHelpEl.textContent = error.message;
 });

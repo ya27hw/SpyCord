@@ -20,15 +20,20 @@
       <div class="sidebar-header">
         <div class="sidebar-header-top">
           <p class="eyebrow">Channel Browser</p>
-          <div class="channel-header-actions">
-            <button id="add-guild-monitor" class="icon-button compact-button hidden" type="button" aria-label="Add selected guild to monitoring">
-              <span class="button-icon" aria-hidden="true">➕</span>
-              <span>Add Guild</span>
+          <div class="channel-header-actions-menu">
+            <button id="toggle-channel-actions" class="icon-button compact-button menu-trigger" type="button" aria-label="Open channel actions">
+              <span class="button-icon" aria-hidden="true">⋯</span>
             </button>
-            <button id="open-channel-filter" class="icon-button compact-button" type="button" aria-label="Configure monitored channels">
-              <span class="button-icon" aria-hidden="true">🎯</span>
-              <span>Monitor</span>
-            </button>
+            <div id="channel-actions-menu" class="channel-actions-menu hidden" role="menu" aria-label="Channel browser actions">
+              <button id="add-guild-monitor" class="menu-action hidden" type="button" role="menuitem" aria-label="Add selected guild to monitoring">
+                <span class="button-icon" aria-hidden="true">➕</span>
+                <span>Add Guild To Monitoring</span>
+              </button>
+              <button id="open-channel-filter" class="menu-action" type="button" role="menuitem" aria-label="Configure monitored channels">
+                <span class="button-icon" aria-hidden="true">🎯</span>
+                <span>Monitor Channels</span>
+              </button>
+            </div>
           </div>
         </div>
         <h1 id="sidebar-guild-title">Guild Logs</h1>
@@ -118,6 +123,7 @@
               <span class="sidebar-meta">Choose from the guilds this bot can already see.</span>
             </div>
             <div id="guild-selector" class="guild-selector"></div>
+            <div id="channel-selector" class="guild-selector hidden" aria-hidden="true"></div>
 
             <div class="viewer-preferences">
               <p class="field-label">Viewer Preferences</p>
