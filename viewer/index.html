@@ -57,22 +57,30 @@
           <p id="log-path" class="header-subtle">Waiting for data...</p>
         </div>
         <div class="header-top-actions">
-          <button id="toggle-servers" class="theme-toggle mobile-servers-toggle" type="button" aria-label="Toggle server list">
-            <span class="button-icon" aria-hidden="true">🖧</span>
-            <span>Servers</span>
+          <button id="mobile-menu-toggle" class="settings-button mobile-menu-toggle" type="button" aria-label="Open quick actions">
+            ☰
           </button>
-          <button id="toggle-channels" class="theme-toggle mobile-channels-toggle" type="button" aria-label="Toggle channel list">
-            <span class="button-icon" aria-hidden="true">💬</span>
-            <span>Channels</span>
-          </button>
-          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">
-            <span class="button-icon" aria-hidden="true">🌗</span>
-            <span id="theme-toggle-label">Light Mode</span>
-          </button>
-          <button id="open-help" class="settings-button" type="button" aria-label="Open help">?</button>
-          <button id="open-settings" class="settings-button" type="button" aria-label="Open settings">&#9881;</button>
+          <div id="mobile-actions-menu" class="mobile-actions-menu">
+            <button id="toggle-servers" class="theme-toggle mobile-servers-toggle" type="button" aria-label="Toggle server list">
+              <span class="button-icon" aria-hidden="true">🖧</span>
+              <span>Servers</span>
+            </button>
+            <button id="toggle-channels" class="theme-toggle mobile-channels-toggle" type="button" aria-label="Toggle channel list">
+              <span class="button-icon" aria-hidden="true">💬</span>
+              <span>Channels</span>
+            </button>
+            <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">
+              <span class="button-icon" aria-hidden="true">🌗</span>
+              <span id="theme-toggle-label">Light Mode</span>
+            </button>
+            <button id="open-help" class="settings-button" type="button" aria-label="Open help">?</button>
+            <button id="open-settings" class="settings-button" type="button" aria-label="Open settings">&#9881;</button>
+          </div>
         </div>
         <div class="header-controls">
+          <button id="mobile-search-toggle" class="settings-button mobile-search-toggle" type="button" aria-label="Open search">
+            🔎
+          </button>
           <label class="search-wrap" for="search-input">
             <span class="search-icon">/</span>
             <input id="search-input" type="search" placeholder="Search messages, authors, events...">

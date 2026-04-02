@@ -31,6 +31,8 @@ const state = {
   webhookEnabled: false,
   channelFilterOpen: false,
   channelActionsMenuOpen: false,
+  mobileHeaderMenuOpen: false,
+  mobileSearchOpen: false,
   keywords: [],
 };
 
@@ -46,9 +48,13 @@ const refreshTextEl = document.getElementById("refresh-text");
 const emptyStateEl = document.getElementById("empty-state");
 const logPathEl = document.getElementById("log-path");
 const searchInputEl = document.getElementById("search-input");
+const searchWrapEl = document.querySelector(".search-wrap");
+const mobileSearchToggleEl = document.getElementById("mobile-search-toggle");
 const themeToggleEl = document.getElementById("theme-toggle");
 const toggleServersEl = document.getElementById("toggle-servers");
 const toggleChannelsEl = document.getElementById("toggle-channels");
+const mobileMenuToggleEl = document.getElementById("mobile-menu-toggle");
+const mobileActionsMenuEl = document.getElementById("mobile-actions-menu");
 const toggleSidebarEl = document.getElementById("toggle-sidebar");
 const toggleSidebarIconEl = toggleSidebarEl.querySelector(".button-icon");
 const openHelpEl = document.getElementById("open-help");
@@ -150,13 +156,36 @@ function applyMobileChannelsState(open) {
   }
 }
 
+function applyMobileHeaderMenuState(open) {
+  const shouldOpen = Boolean(open);
+  state.mobileHeaderMenuOpen = shouldOpen;
+  appShellEl.classList.toggle("mobile-header-menu-open", shouldOpen);
+  if (mobileMenuToggleEl) {
+    mobileMenuToggleEl.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  }
+}
+
+function applyMobileSearchState(open) {
+  const shouldOpen = Boolean(open);
+  state.mobileSearchOpen = shouldOpen;
+  appShellEl.classList.toggle("mobile-search-open", shouldOpen);
+  if (mobileSearchToggleEl) {
+    mobileSearchToggleEl.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+  }
+  if (shouldOpen) {
+    setTimeout(() => searchInputEl?.focus(), 130);
+  }
+}
+
 function applySettingsState(open) {
   state.settingsOpen = Boolean(open);
   settingsModalEl.classList.toggle("hidden", !state.settingsOpen);
   applyChannelActionsMenuState(false);
+  applyMobileHeaderMenuState(false);
   if (state.settingsOpen) {
     applyHelpState(false);
     applyChannelFilterState(false);
+    applyMobileSearchState(false);
   }
 }
 
@@ -164,11 +193,13 @@ function applyHelpState(open) {
   state.helpOpen = Boolean(open);
   helpModalEl.classList.toggle("hidden", !state.helpOpen);
   applyChannelActionsMenuState(false);
+  applyMobileHeaderMenuState(false);
   if (state.helpOpen) {
     settingsModalEl.classList.add("hidden");
     channelFilterModalEl.classList.add("hidden");
     state.settingsOpen = false;
     state.channelFilterOpen = false;
+    applyMobileSearchState(false);
   }
 }
 
@@ -176,16 +207,22 @@ function applyChannelFilterState(open) {
   state.channelFilterOpen = Boolean(open);
   channelFilterModalEl.classList.toggle("hidden", !state.channelFilterOpen);
   applyChannelActionsMenuState(false);
+  applyMobileHeaderMenuState(false);
   if (state.channelFilterOpen) {
     applyHelpState(false);
     applySettingsState(false);
+    applyMobileSearchState(false);
   }
 }
 
 function applyChannelActionsMenuState(open) {
   state.channelActionsMenuOpen = Boolean(open);
-  channelActionsMenuEl.classList.toggle("hidden", !state.channelActionsMenuOpen);
-  toggleChannelActionsEl.setAttribute("aria-expanded", state.channelActionsMenuOpen ? "true" : "false");
+  if (channelActionsMenuEl) {
+    channelActionsMenuEl.classList.toggle("hidden", !state.channelActionsMenuOpen);
+  }
+  if (toggleChannelActionsEl) {
+    toggleChannelActionsEl.setAttribute("aria-expanded", state.channelActionsMenuOpen ? "true" : "false");
+  }
 }
 
 function getSelectedGuildIds() {
@@ -463,8 +500,12 @@ function renderChannelFilterModal() {
   channelFilterListEl.innerHTML = "";
   const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
   const guild = state.monitorGuilds.find((item) => String(item.id) === selectedGuildId);
-  channelWebhookOnEl.checked = Boolean(state.webhookEnabled);
-  channelWebhookOffEl.checked = !state.webhookEnabled;
+  if (channelWebhookOnEl) {
+    channelWebhookOnEl.checked = Boolean(state.webhookEnabled);
+  }
+  if (channelWebhookOffEl) {
+    channelWebhookOffEl.checked = !state.webhookEnabled;
+  }
 
   if (!selectedGuildId || !guild) {
     channelFilterTitleEl.textContent = "Select A Server First";
@@ -1064,8 +1105,12 @@ async function fetchConfig() {
   state.keywords = (payload.config.keywords || []).map((keyword) => String(keyword).trim()).filter(Boolean);
   webhookInputEl.value = state.webhookUrl;
   keywordsInputEl.value = state.keywords.join(", ");
-  channelWebhookOnEl.checked = state.webhookEnabled;
-  channelWebhookOffEl.checked = !state.webhookEnabled;
+  if (channelWebhookOnEl) {
+    channelWebhookOnEl.checked = state.webhookEnabled;
+  }
+  if (channelWebhookOffEl) {
+    channelWebhookOffEl.checked = !state.webhookEnabled;
+  }
   state.configExpanded = !(payload.config.token && (payload.config.guild_ids || []).length > 0);
   applySettingsState(shouldAutoOpenSettings(payload.config, payload.monitor));
   updateMonitorUI(payload.monitor);
@@ -1157,7 +1202,9 @@ async function saveChannelFilterFromModal() {
   state.draftChannelIds = Array.from(nextSelected);
   state.configuredChannelIds = [...state.draftChannelIds];
   state.channelSelectionDirty = false;
-  state.webhookEnabled = channelWebhookOnEl.checked;
+  if (channelWebhookOnEl && channelWebhookOffEl) {
+    state.webhookEnabled = channelWebhookOnEl.checked;
+  }
 
   await saveConfigAndStart();
   applyChannelFilterState(false);
@@ -1190,6 +1237,7 @@ searchInputEl.addEventListener("input", (event) => {
 
 themeToggleEl.addEventListener("click", () => {
   applyTheme(state.theme === "dark" ? "light" : "dark");
+  applyMobileHeaderMenuState(false);
 });
 
 saveConfigEl.addEventListener("click", () => {
@@ -1246,10 +1294,14 @@ toggleSidebarEl.addEventListener("click", () => {
 
 toggleServersEl.addEventListener("click", () => {
   applyMobileServersState(!appShellEl.classList.contains("mobile-servers-open"));
+  applyMobileHeaderMenuState(false);
+  applyMobileSearchState(false);
 });
 
 toggleChannelsEl.addEventListener("click", () => {
   applyMobileChannelsState(!appShellEl.classList.contains("mobile-channels-open"));
+  applyMobileHeaderMenuState(false);
+  applyMobileSearchState(false);
 });
 
 openSettingsEl.addEventListener("click", () => {
@@ -1268,25 +1320,45 @@ closeHelpEl.addEventListener("click", () => {
   applyHelpState(false);
 });
 
-openChannelFilterEl.addEventListener("click", () => {
-  applyChannelActionsMenuState(false);
-  renderChannelFilterModal();
-  applyChannelFilterState(true);
-});
-
-addGuildMonitorEl.addEventListener("click", () => {
-  applyChannelActionsMenuState(false);
-  addSelectedGuildToMonitoring().catch((error) => {
-    monitorBadgeEl.textContent = "Error";
-    monitorBadgeEl.classList.remove("live");
-    monitorBadgeEl.classList.add("error");
-    configHelpEl.textContent = error.message;
+if (openChannelFilterEl) {
+  openChannelFilterEl.addEventListener("click", () => {
+    applyChannelActionsMenuState(false);
+    renderChannelFilterModal();
+    applyChannelFilterState(true);
   });
-});
+}
 
-toggleChannelActionsEl.addEventListener("click", () => {
-  applyChannelActionsMenuState(!state.channelActionsMenuOpen);
-});
+if (addGuildMonitorEl) {
+  addGuildMonitorEl.addEventListener("click", () => {
+    applyChannelActionsMenuState(false);
+    addSelectedGuildToMonitoring().catch((error) => {
+      monitorBadgeEl.textContent = "Error";
+      monitorBadgeEl.classList.remove("live");
+      monitorBadgeEl.classList.add("error");
+      configHelpEl.textContent = error.message;
+    });
+  });
+}
+
+if (toggleChannelActionsEl) {
+  toggleChannelActionsEl.addEventListener("click", () => {
+    applyChannelActionsMenuState(!state.channelActionsMenuOpen);
+  });
+}
+
+if (mobileMenuToggleEl) {
+  mobileMenuToggleEl.addEventListener("click", () => {
+    applyMobileHeaderMenuState(!state.mobileHeaderMenuOpen);
+    applyMobileSearchState(false);
+  });
+}
+
+if (mobileSearchToggleEl) {
+  mobileSearchToggleEl.addEventListener("click", () => {
+    applyMobileSearchState(!state.mobileSearchOpen);
+    applyMobileHeaderMenuState(false);
+  });
+}
 
 closeChannelFilterEl.addEventListener("click", () => {
   applyChannelFilterState(false);
@@ -1323,7 +1395,7 @@ channelFilterModalEl.addEventListener("click", (event) => {
 });
 
 document.addEventListener("click", (event) => {
-  if (!state.channelActionsMenuOpen) {
+  if (!state.channelActionsMenuOpen || !channelActionsMenuEl || !toggleChannelActionsEl) {
     return;
   }
   const target = event.target;
@@ -1333,6 +1405,28 @@ document.addEventListener("click", (event) => {
   applyChannelActionsMenuState(false);
 });
 
+document.addEventListener("click", (event) => {
+  if (!state.mobileHeaderMenuOpen || !isMobileViewport() || !mobileActionsMenuEl || !mobileMenuToggleEl) {
+    return;
+  }
+  const target = event.target;
+  if (mobileActionsMenuEl.contains(target) || mobileMenuToggleEl.contains(target)) {
+    return;
+  }
+  applyMobileHeaderMenuState(false);
+});
+
+document.addEventListener("click", (event) => {
+  if (!state.mobileSearchOpen || !isMobileViewport() || !searchWrapEl || !mobileSearchToggleEl) {
+    return;
+  }
+  const target = event.target;
+  if (searchWrapEl.contains(target) || mobileSearchToggleEl.contains(target)) {
+    return;
+  }
+  applyMobileSearchState(false);
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
@@ -1340,6 +1434,16 @@ document.addEventListener("keydown", (event) => {
 
   if (state.channelActionsMenuOpen) {
     applyChannelActionsMenuState(false);
+    return;
+  }
+
+  if (state.mobileHeaderMenuOpen) {
+    applyMobileHeaderMenuState(false);
+    return;
+  }
+
+  if (state.mobileSearchOpen && isMobileViewport()) {
+    applyMobileSearchState(false);
     return;
   }
 
@@ -1365,6 +1469,8 @@ document.addEventListener("selectionchange", () => {
 window.addEventListener("resize", () => {
   applyChannelActionsMenuState(false);
   if (!isMobileViewport()) {
+    applyMobileHeaderMenuState(false);
+    applyMobileSearchState(false);
     applyMobileServersState(false);
     applyMobileChannelsState(false);
   }
@@ -1377,6 +1483,8 @@ applyHelpState(false);
 applySettingsState(false);
 applyChannelFilterState(false);
 applyChannelActionsMenuState(false);
+applyMobileHeaderMenuState(false);
+applyMobileSearchState(false);
 fetchConfig().catch((error) => {
   configHelpEl.textContent = error.message;
 });

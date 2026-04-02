@@ -766,6 +766,18 @@ body.light-mode .modal-backdrop {
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+  position: relative;
+}
+
+.mobile-menu-toggle {
+  display: none;
+}
+
+.mobile-actions-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .header-subtle {
@@ -812,6 +824,10 @@ body.light-mode .modal-backdrop {
   border-radius: 14px;
   background: var(--search-bg);
   border: 1px solid var(--border);
+}
+
+.mobile-search-toggle {
+  display: none;
 }
 
 .search-icon {
@@ -1192,8 +1208,56 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
 
   .header-top-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 8px;
+  }
+
+  .mobile-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .mobile-actions-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    z-index: 16;
+    min-width: min(280px, calc(100vw - 32px));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--modal-bg, rgba(43, 45, 49, 0.98));
+    box-shadow: var(--shadow);
+    padding: 8px;
+    gap: 6px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-shell.mobile-header-menu-open .mobile-actions-menu {
+    display: flex;
+  }
+
+  .mobile-actions-menu .theme-toggle,
+  .mobile-actions-menu .settings-button {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .mobile-actions-menu .settings-button {
+    border-radius: 12px;
+    height: 40px;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mobile-servers-toggle {
@@ -1213,13 +1277,49 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   .header-controls {
     width: 100%;
     flex-direction: row;
-    align-items: stretch;
-    justify-content: flex-start;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 42px;
+  }
+
+  .mobile-search-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    font-size: 1rem;
+    flex: 0 0 auto;
   }
 
   .search-wrap {
     min-width: 0;
+    width: 0;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateX(8px);
+    transition:
+      max-width 240ms ease,
+      opacity 200ms ease,
+      transform 220ms ease;
+    pointer-events: none;
+    padding: 0;
+    border-color: transparent;
+  }
+
+  .app-shell.mobile-search-open .header-controls {
+    justify-content: stretch;
+  }
+
+  .app-shell.mobile-search-open .search-wrap {
     width: 100%;
+    max-width: 100%;
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+    padding: 0 12px;
+    border-color: var(--border);
   }
 
   .theme-toggle {
