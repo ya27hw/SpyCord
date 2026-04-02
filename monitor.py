@@ -1,5 +1,6 @@
 import argparse
 import logging
+from datetime import timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -93,17 +94,31 @@ async def send_webhook_notification(
     channel_name: str,
     author: str,
     content: str,
+    message_url: str,
+    message_timestamp: str,
 ):
     if webhook is None:
         return
 
-    safe_content = content if len(content) <= 1750 else f"{content[:1747]}..."
-    message = (
-        f"**[{guild_name} / #{channel_name}]**\n"
-        f"**{author}**\n"
-        f"{safe_content}"
+    safe_content = content if len(content) <= 4000 else f"{content[:3997]}..."
+    embed = discord.Embed(
+        title=f"New Message in #{channel_name}",
+        description=safe_content,
+        color=discord.Color.red(),
     )
-    await webhook.send(content=message, username="SpyCord Alerts", wait=False)
+    embed.add_field(name="Server", value=guild_name, inline=True)
+    embed.add_field(name="Author", value=author, inline=True)
+    if message_url:
+        embed.add_field(name="Jump To Message", value=f"[Open Message]({message_url})", inline=False)
+    if message_timestamp:
+        embed.add_field(name="Timestamp", value=message_timestamp, inline=False)
+    embed.set_footer(text="SpyCord Notification")
+    await webhook.send(
+        content="New monitored message received.",
+        embed=embed,
+        username="SpyCord Alerts",
+        wait=False,
+    )
 
 
 def install_read_only_guards():
@@ -131,12 +146,14 @@ def create_client(
     guild_ids: Iterable[int],
     channel_ids: Iterable[int],
     webhook_url: str | None,
+    webhook_enabled: bool,
     log_file: str | None,
 ) -> commands.Bot:
     logger = build_logger(log_file)
     target_guild_ids = {int(guild_id) for guild_id in guild_ids}
     target_channel_ids = {int(channel_id) for channel_id in channel_ids}
     webhook_url = (webhook_url or "").strip() or None
+    webhook_enabled = bool(webhook_enabled)
     install_read_only_guards()
 
     bot = commands.Bot(
@@ -174,7 +191,7 @@ def create_client(
             )
         bot.spycord_guilds = guild_entries
 
-        if webhook_url and bot.spycord_webhook_session is None:
+        if webhook_enabled and webhook_url and bot.spycord_webhook_session is None:
             bot.spycord_webhook_session = aiohttp.ClientSession()
             bot.spycord_webhook = discord.Webhook.from_url(webhook_url, session=bot.spycord_webhook_session)
 
@@ -234,6 +251,8 @@ def create_client(
                 channel_name=channel_name,
                 author=author,
                 content=content,
+                message_url=getattr(message, "jump_url", ""),
+                message_timestamp=message.created_at.astimezone(timezone.utc).isoformat(),
             )
         except Exception as exc:
             logger.error("Failed to send webhook notification: %s", exc)
@@ -292,12 +311,24 @@ def parse_args():
         dest="webhook_url",
         help="Optional Discord webhook URL for message notifications.",
     )
+    parser.add_argument(
+        "--webhook-enabled",
+        dest="webhook_enabled",
+        action="store_true",
+        help="Enable webhook notifications for monitored messages.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    client = create_client(args.guild_ids, args.channel_ids, args.webhook_url, args.log_file)
+    client = create_client(
+        args.guild_ids,
+        args.channel_ids,
+        args.webhook_url,
+        args.webhook_enabled,
+        args.log_file,
+    )
     client.run(args.token)
 
 

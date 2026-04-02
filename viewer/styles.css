@@ -290,6 +290,24 @@ body {
   gap: 10px;
 }
 
+.sidebar-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.channel-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.compact-button {
+  padding: 6px 10px;
+  font-size: 0.76rem;
+}
+
 .settings-panel {
   margin: 18px 28px 0;
   background: var(--modal-bg, rgba(43, 45, 49, 0.98));
@@ -319,6 +337,10 @@ body.light-mode .modal-backdrop {
   width: min(860px, calc(100vw - 80px));
   max-height: calc(100vh - 80px);
   overflow-y: auto;
+}
+
+.channel-filter-panel {
+  width: min(620px, calc(100vw - 80px));
 }
 
 .help-grid {
@@ -558,6 +580,11 @@ body.light-mode .modal-backdrop {
   margin-right: 8px;
   background: #57f287;
   box-shadow: 0 0 0 6px rgba(87, 242, 135, 0.14);
+}
+
+.status-dot.muted {
+  background: #8e9297;
+  box-shadow: 0 0 0 6px rgba(142, 146, 151, 0.2);
 }
 
 .channel-groups {

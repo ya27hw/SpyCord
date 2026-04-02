@@ -28,6 +28,8 @@ const state = {
   guildLatestById: {},
   unreadGuildIds: new Set(),
   unreadTrackingReady: false,
+  webhookEnabled: false,
+  channelFilterOpen: false,
 };
 
 const serverListEl = document.getElementById("server-list");
@@ -37,6 +39,7 @@ const channelTitleEl = document.getElementById("channel-title");
 const sidebarGuildTitleEl = document.getElementById("sidebar-guild-title");
 const messageCountEl = document.getElementById("message-count");
 const statusTextEl = document.getElementById("status-text");
+const statusDotEl = document.querySelector(".status-dot");
 const refreshTextEl = document.getElementById("refresh-text");
 const emptyStateEl = document.getElementById("empty-state");
 const logPathEl = document.getElementById("log-path");
@@ -54,10 +57,18 @@ const helpPanelEl = document.getElementById("help-panel");
 const settingsPanelEl = document.getElementById("settings-panel");
 const helpModalEl = document.getElementById("help-modal");
 const settingsModalEl = document.getElementById("settings-modal");
+const channelFilterModalEl = document.getElementById("channel-filter-modal");
 const tokenInputEl = document.getElementById("token-input");
 const guildSelectorEl = document.getElementById("guild-selector");
 const channelSelectorEl = document.getElementById("channel-selector");
 const webhookInputEl = document.getElementById("webhook-input");
+const openChannelFilterEl = document.getElementById("open-channel-filter");
+const addGuildMonitorEl = document.getElementById("add-guild-monitor");
+const closeChannelFilterEl = document.getElementById("close-channel-filter");
+const applyChannelFilterEl = document.getElementById("apply-channel-filter");
+const channelFilterTitleEl = document.getElementById("channel-filter-title");
+const channelFilterListEl = document.getElementById("channel-filter-list");
+const channelWebhookToggleEl = document.getElementById("channel-webhook-toggle");
 const saveConfigEl = document.getElementById("save-config");
 const stopMonitorEl = document.getElementById("stop-monitor");
 const configHelpEl = document.getElementById("config-help");
@@ -130,6 +141,7 @@ function applySettingsState(open) {
   settingsModalEl.classList.toggle("hidden", !state.settingsOpen);
   if (state.settingsOpen) {
     applyHelpState(false);
+    applyChannelFilterState(false);
   }
 }
 
@@ -138,7 +150,18 @@ function applyHelpState(open) {
   helpModalEl.classList.toggle("hidden", !state.helpOpen);
   if (state.helpOpen) {
     settingsModalEl.classList.add("hidden");
+    channelFilterModalEl.classList.add("hidden");
     state.settingsOpen = false;
+    state.channelFilterOpen = false;
+  }
+}
+
+function applyChannelFilterState(open) {
+  state.channelFilterOpen = Boolean(open);
+  channelFilterModalEl.classList.toggle("hidden", !state.channelFilterOpen);
+  if (state.channelFilterOpen) {
+    applyHelpState(false);
+    applySettingsState(false);
   }
 }
 
@@ -157,6 +180,14 @@ function getSelectedChannelIds() {
     .filter((input) => input.checked)
     .map((input) => input.value)
     .filter(Boolean);
+}
+
+function getSelectedGuildIdsForSave() {
+  const selected = getSelectedGuildIds();
+  if (selected.length > 0) {
+    return selected;
+  }
+  return getEffectiveGuildSelection().map(String);
 }
 
 function getEffectiveGuildSelection() {
@@ -228,7 +259,8 @@ function refreshConfigVisibility() {
     const channelText = channelCount
       ? `${channelCount} channel${channelCount === 1 ? "" : "s"} selected`
       : "all channels selected";
-    configSummaryTextEl.textContent = `Saved token with ${guildCount} guild${guildCount === 1 ? "" : "s"} configured (${channelText}).`;
+    const webhookText = state.webhookEnabled ? "webhook alerts enabled" : "webhook alerts disabled";
+    configSummaryTextEl.textContent = `Saved token with ${guildCount} guild${guildCount === 1 ? "" : "s"} configured (${channelText}, ${webhookText}).`;
   } else if (tokenInputEl.value.trim()) {
     configSummaryTextEl.textContent = "Token saved. Choose which discovered servers to monitor.";
   }
@@ -482,6 +514,41 @@ function renderChannelSelector(monitorGuilds) {
   }
 }
 
+function renderChannelFilterModal() {
+  channelFilterListEl.innerHTML = "";
+  const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
+  const guild = state.monitorGuilds.find((item) => String(item.id) === selectedGuildId);
+  channelWebhookToggleEl.checked = Boolean(state.webhookEnabled);
+
+  if (!selectedGuildId || !guild) {
+    channelFilterTitleEl.textContent = "Select A Server First";
+    channelFilterListEl.innerHTML = '<p class="sidebar-meta">Pick a server in the left rail, then open this panel again.</p>';
+    applyChannelFilterEl.disabled = true;
+    return;
+  }
+
+  channelFilterTitleEl.textContent = `Monitored Channels - ${guild.name}`;
+  applyChannelFilterEl.disabled = false;
+  const selectedSet = new Set(getEffectiveChannelSelection().map(String));
+
+  for (const channel of guild.channels || []) {
+    const option = document.createElement("label");
+    option.className = "guild-option";
+    option.innerHTML = `
+      <input type="checkbox" value="${channel.id}">
+      <span class="guild-option-label">
+        <span class="guild-option-name"></span>
+        <span class="guild-option-meta"></span>
+      </span>
+    `;
+    option.querySelector(".guild-option-name").textContent = `#${channel.name}`;
+    option.querySelector(".guild-option-meta").textContent = `${channel.category} (${channel.id})`;
+    const input = option.querySelector("input");
+    input.checked = selectedSet.has(String(channel.id));
+    channelFilterListEl.appendChild(option);
+  }
+}
+
 function renderServers(guilds) {
   serverListEl.innerHTML = "";
 
@@ -541,6 +608,7 @@ function updateMonitorUI(monitor) {
     guild_ids: [],
     channel_ids: [],
     webhook_configured: false,
+    webhook_enabled: false,
     guilds: [],
   };
   const hasConfig = tokenInputEl.value.trim() && getEffectiveGuildSelection().length > 0;
@@ -550,6 +618,14 @@ function updateMonitorUI(monitor) {
   );
   const monitoredGuilds = (safeMonitor.guilds || []).filter((guild) => guild.monitored);
   monitorBadgeEl.classList.remove("live", "error");
+  statusDotEl?.classList.remove("muted");
+  const shouldShowAddGuildButton = Boolean(
+    selectedGuildId &&
+    selectedGuildStatus &&
+    !selectedGuildStatus.monitored &&
+    tokenInputEl.value.trim()
+  );
+  addGuildMonitorEl?.classList.toggle("hidden", !shouldShowAddGuildButton);
 
   if (safeMonitor.running && monitoredGuilds.length > 0) {
     const monitoredChannelCount = (safeMonitor.channel_ids || []).length;
@@ -557,13 +633,16 @@ function updateMonitorUI(monitor) {
     monitorBadgeEl.classList.add("live");
     if (selectedGuildId && selectedGuildStatus && !selectedGuildStatus.monitored) {
       statusTextEl.textContent = "Viewing unmonitored server";
+      statusDotEl?.classList.add("muted");
     } else {
       statusTextEl.textContent = "Monitoring live";
     }
     const channelInfo = monitoredChannelCount
       ? `${monitoredChannelCount} selected channel${monitoredChannelCount === 1 ? "" : "s"}`
       : "all channels in selected servers";
-    const webhookInfo = safeMonitor.webhook_configured ? "webhook alerts enabled" : "webhook alerts disabled";
+    const webhookInfo = safeMonitor.webhook_configured && safeMonitor.webhook_enabled
+      ? "webhook alerts enabled"
+      : "webhook alerts disabled";
     configHelpEl.textContent = `Watching ${monitoredGuilds.length} guild${monitoredGuilds.length === 1 ? "" : "s"} (${channelInfo}, ${webhookInfo}).`;
     refreshConfigVisibility();
     return;
@@ -1035,7 +1114,9 @@ async function fetchConfig() {
   state.guildSelectionDirty = false;
   state.channelSelectionDirty = false;
   state.webhookUrl = payload.config.webhook_url || "";
+  state.webhookEnabled = Boolean(payload.config.webhook_enabled);
   webhookInputEl.value = state.webhookUrl;
+  channelWebhookToggleEl.checked = state.webhookEnabled;
   state.configExpanded = !(payload.config.token && (payload.config.guild_ids || []).length > 0);
   applySettingsState(shouldAutoOpenSettings(payload.config, payload.monitor));
   updateMonitorUI(payload.monitor);
@@ -1046,9 +1127,10 @@ async function fetchConfig() {
 }
 
 async function saveConfigAndStart() {
-  const guildIds = getSelectedGuildIds();
+  const guildIds = getSelectedGuildIdsForSave();
   const channelIds = getSelectedChannelIds();
   const webhookUrl = webhookInputEl.value.trim();
+  const webhookEnabled = Boolean(state.webhookEnabled);
 
   const response = await fetch("/api/config", {
     method: "POST",
@@ -1058,6 +1140,7 @@ async function saveConfigAndStart() {
       guild_ids: guildIds,
       channel_ids: channelIds,
       webhook_url: webhookUrl,
+      webhook_enabled: webhookEnabled,
       start_monitor: true,
     }),
   });
@@ -1074,9 +1157,60 @@ async function saveConfigAndStart() {
   state.guildSelectionDirty = false;
   state.channelSelectionDirty = false;
   state.webhookUrl = webhookUrl;
+  state.webhookEnabled = webhookEnabled;
   state.configExpanded = false;
   applySettingsState(false);
   updateMonitorUI(payload.monitor);
+}
+
+async function addSelectedGuildToMonitoring() {
+  const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
+  if (!selectedGuildId) {
+    return;
+  }
+
+  const nextGuildSet = new Set(getEffectiveGuildSelection().map(String));
+  nextGuildSet.add(selectedGuildId);
+  state.draftGuildIds = Array.from(nextGuildSet);
+  state.configuredGuildIds = [...state.draftGuildIds];
+  state.guildSelectionDirty = false;
+  await saveConfigAndStart();
+}
+
+async function saveChannelFilterFromModal() {
+  const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
+  if (!selectedGuildId) {
+    return;
+  }
+
+  const guild = state.monitorGuilds.find((item) => String(item.id) === selectedGuildId);
+  if (!guild) {
+    return;
+  }
+
+  const selectedForGuild = new Set(
+    Array.from(channelFilterListEl.querySelectorAll("input[type='checkbox']:checked"))
+      .map((input) => String(input.value))
+      .filter(Boolean)
+  );
+
+  const allGuildChannelIds = new Set((guild.channels || []).map((channel) => String(channel.id)));
+  const nextSelected = new Set(getEffectiveChannelSelection().map(String));
+  for (const channelId of allGuildChannelIds) {
+    nextSelected.delete(channelId);
+  }
+  for (const channelId of selectedForGuild) {
+    nextSelected.add(channelId);
+  }
+
+  state.draftChannelIds = Array.from(nextSelected);
+  state.configuredChannelIds = [...state.draftChannelIds];
+  state.channelSelectionDirty = false;
+  state.webhookEnabled = channelWebhookToggleEl.checked;
+
+  await saveConfigAndStart();
+  renderChannelSelector(state.monitorGuilds);
+  applyChannelFilterState(false);
 }
 
 async function stopMonitor() {
@@ -1180,6 +1314,31 @@ closeHelpEl.addEventListener("click", () => {
   applyHelpState(false);
 });
 
+openChannelFilterEl.addEventListener("click", () => {
+  renderChannelFilterModal();
+  applyChannelFilterState(!state.channelFilterOpen);
+});
+
+addGuildMonitorEl.addEventListener("click", () => {
+  addSelectedGuildToMonitoring().catch((error) => {
+    monitorBadgeEl.textContent = "Error";
+    monitorBadgeEl.classList.remove("live");
+    monitorBadgeEl.classList.add("error");
+    configHelpEl.textContent = error.message;
+  });
+});
+
+closeChannelFilterEl.addEventListener("click", () => {
+  applyChannelFilterState(false);
+});
+
+applyChannelFilterEl.addEventListener("click", () => {
+  saveChannelFilterFromModal().catch((error) => {
+    configHelpEl.textContent = error.message;
+    applyChannelFilterState(false);
+  });
+});
+
 settingsModalEl.addEventListener("click", (event) => {
   if (event.target === settingsModalEl) {
     applySettingsState(false);
@@ -1189,6 +1348,12 @@ settingsModalEl.addEventListener("click", (event) => {
 helpModalEl.addEventListener("click", (event) => {
   if (event.target === helpModalEl) {
     applyHelpState(false);
+  }
+});
+
+channelFilterModalEl.addEventListener("click", (event) => {
+  if (event.target === channelFilterModalEl) {
+    applyChannelFilterState(false);
   }
 });
 
@@ -1204,6 +1369,11 @@ document.addEventListener("keydown", (event) => {
 
   if (state.settingsOpen) {
     applySettingsState(false);
+    return;
+  }
+
+  if (state.channelFilterOpen) {
+    applyChannelFilterState(false);
   }
 });
 
@@ -1223,6 +1393,7 @@ applyFormatData(localStorage.getItem("viewer-format-data") !== "0");
 applySidebarState(localStorage.getItem("viewer-sidebar-collapsed") === "1");
 applyHelpState(false);
 applySettingsState(false);
+applyChannelFilterState(false);
 fetchConfig().catch((error) => {
   configHelpEl.textContent = error.message;
 });

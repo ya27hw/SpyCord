@@ -18,7 +18,19 @@
 
     <aside class="channel-sidebar">
       <div class="sidebar-header">
-        <p class="eyebrow">Channel Browser</p>
+        <div class="sidebar-header-top">
+          <p class="eyebrow">Channel Browser</p>
+          <div class="channel-header-actions">
+            <button id="add-guild-monitor" class="icon-button compact-button hidden" type="button" aria-label="Add selected guild to monitoring">
+              <span class="button-icon" aria-hidden="true">➕</span>
+              <span>Add Guild</span>
+            </button>
+            <button id="open-channel-filter" class="icon-button compact-button" type="button" aria-label="Configure monitored channels">
+              <span class="button-icon" aria-hidden="true">⚙️</span>
+              <span>Monitor</span>
+            </button>
+          </div>
+        </div>
         <h1 id="sidebar-guild-title">Guild Logs</h1>
         <div class="sidebar-status-line">
           <span class="status-dot"></span>
@@ -175,6 +187,35 @@
               <h4>Live Updates</h4>
               <p>SpyCord refreshes automatically. The timestamp in the header shows when the viewer last refreshed from the log.</p>
             </div>
+          </div>
+        </section>
+      </div>
+
+      <div id="channel-filter-modal" class="modal-backdrop hidden">
+        <section class="settings-panel modal-panel channel-filter-panel">
+          <div class="settings-panel-header">
+            <div>
+              <p class="eyebrow">Monitor Channels</p>
+              <h3 id="channel-filter-title">Select Channels</h3>
+            </div>
+            <button id="close-channel-filter" class="icon-button" type="button">
+              <span class="button-icon" aria-hidden="true">❌</span>
+              <span>Close</span>
+            </button>
+          </div>
+          <label class="setting-toggle">
+            <input id="channel-webhook-toggle" type="checkbox">
+            <span>
+              <strong>Send Discord webhook alerts for monitored channels</strong>
+              <span class="sidebar-meta">Requires a webhook URL in Settings.</span>
+            </span>
+          </label>
+          <div id="channel-filter-list" class="guild-selector"></div>
+          <div class="config-actions">
+            <button id="apply-channel-filter" class="primary-button" type="button">
+              <span class="button-icon" aria-hidden="true">✅</span>
+              <span>Apply</span>
+            </button>
           </div>
         </section>
       </div>

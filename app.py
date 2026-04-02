@@ -84,6 +84,7 @@ class MonitorManager:
         self._channel_ids: list[int] = []
         self._token: str | None = None
         self._webhook_url: str = ""
+        self._webhook_enabled: bool = False
         self._startup_event: threading.Event | None = None
 
     def status(self) -> dict[str, Any]:
@@ -115,6 +116,7 @@ class MonitorManager:
                 "guild_ids": [str(guild_id) for guild_id in self._guild_ids],
                 "channel_ids": [str(channel_id) for channel_id in self._channel_ids],
                 "webhook_configured": bool(self._webhook_url),
+                "webhook_enabled": self._webhook_enabled,
                 "guilds": guilds,
             }
 
@@ -124,10 +126,12 @@ class MonitorManager:
         guild_ids: list[int],
         channel_ids: list[int] | None = None,
         webhook_url: str | None = None,
+        webhook_enabled: bool = False,
     ):
         normalized_guild_ids = list(guild_ids)
         normalized_channel_ids = list(channel_ids or [])
         normalized_webhook_url = (webhook_url or "").strip()
+        normalized_webhook_enabled = bool(webhook_enabled)
         with self._lock:
             if (
                 self._running
@@ -135,6 +139,7 @@ class MonitorManager:
                 and self._guild_ids == normalized_guild_ids
                 and self._channel_ids == normalized_channel_ids
                 and self._webhook_url == normalized_webhook_url
+                and self._webhook_enabled == normalized_webhook_enabled
             ):
                 return
 
@@ -147,11 +152,19 @@ class MonitorManager:
             self._channel_ids = normalized_channel_ids
             self._token = token
             self._webhook_url = normalized_webhook_url
+            self._webhook_enabled = normalized_webhook_enabled
             self._startup_event = startup_event
 
         thread = threading.Thread(
             target=self._run_client,
-            args=(token, normalized_guild_ids, normalized_channel_ids, normalized_webhook_url, startup_event),
+            args=(
+                token,
+                normalized_guild_ids,
+                normalized_channel_ids,
+                normalized_webhook_url,
+                normalized_webhook_enabled,
+                startup_event,
+            ),
             daemon=True,
         )
         with self._lock:
@@ -165,11 +178,12 @@ class MonitorManager:
         guild_ids: list[int],
         channel_ids: list[int],
         webhook_url: str,
+        webhook_enabled: bool,
         startup_event: threading.Event,
     ):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        client = create_client(guild_ids, channel_ids, webhook_url, str(self.log_path))
+        client = create_client(guild_ids, channel_ids, webhook_url, webhook_enabled, str(self.log_path))
 
         with self._lock:
             self._loop = loop
@@ -227,12 +241,19 @@ class MonitorManager:
             self._running = False
             self._token = None
             self._webhook_url = ""
+            self._webhook_enabled = False
             self._startup_event = None
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
     if not config_path.exists():
-        return {"token": "", "guild_ids": [], "channel_ids": [], "webhook_url": ""}
+        return {
+            "token": "",
+            "guild_ids": [],
+            "channel_ids": [],
+            "webhook_url": "",
+            "webhook_enabled": False,
+        }
 
     with config_path.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
@@ -242,6 +263,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
         "guild_ids": [int(guild_id) for guild_id in data.get("guild_ids", [])],
         "channel_ids": [int(channel_id) for channel_id in data.get("channel_ids", [])],
         "webhook_url": str(data.get("webhook_url", "")).strip(),
+        "webhook_enabled": bool(data.get("webhook_enabled", False)),
     }
 
 
@@ -251,6 +273,7 @@ def serialize_config(config: dict[str, Any]) -> dict[str, Any]:
         "guild_ids": [str(guild_id) for guild_id in config.get("guild_ids", [])],
         "channel_ids": [str(channel_id) for channel_id in config.get("channel_ids", [])],
         "webhook_url": config.get("webhook_url", ""),
+        "webhook_enabled": bool(config.get("webhook_enabled", False)),
     }
 
 
@@ -349,16 +372,18 @@ def create_app_server(
             channel_ids_raw = data.get("channel_ids", [])
             channel_ids = [int(channel_id) for channel_id in channel_ids_raw if str(channel_id).strip()]
             webhook_url = str(data.get("webhook_url", "")).strip()
+            webhook_enabled = bool(data.get("webhook_enabled", False))
             config = {
                 "token": token,
                 "guild_ids": guild_ids,
                 "channel_ids": channel_ids,
                 "webhook_url": webhook_url,
+                "webhook_enabled": webhook_enabled,
             }
             save_config(config_path, config)
 
             if data.get("start_monitor", True) and token:
-                manager.start(token, guild_ids, channel_ids, webhook_url)
+                manager.start(token, guild_ids, channel_ids, webhook_url, webhook_enabled)
 
             self.send_json(
                 HTTPStatus.OK,
@@ -412,6 +437,7 @@ def main():
             "guild_ids": args.guild_ids or initial_config.get("guild_ids", []),
             "channel_ids": args.channel_ids or initial_config.get("channel_ids", []),
             "webhook_url": args.webhook_url if args.webhook_url is not None else initial_config.get("webhook_url", ""),
+            "webhook_enabled": bool(initial_config.get("webhook_enabled", False)),
         }
         save_config(config_path, initial_config)
 
@@ -421,6 +447,7 @@ def main():
             initial_config.get("guild_ids", []),
             initial_config.get("channel_ids", []),
             initial_config.get("webhook_url", ""),
+            bool(initial_config.get("webhook_enabled", False)),
         )
 
     server = create_app_server(
