@@ -13,6 +13,13 @@ const state = {
   draftGuildIds: [],
   guildSelectionDirty: false,
   formatData: true,
+  messagePageSize: 80,
+  loadedMessages: [],
+  oldestLoadedLine: null,
+  newestLoadedLine: null,
+  hasMoreOlder: false,
+  loadingOlder: false,
+  queryKey: "",
 };
 
 const serverListEl = document.getElementById("server-list");
@@ -27,6 +34,7 @@ const emptyStateEl = document.getElementById("empty-state");
 const logPathEl = document.getElementById("log-path");
 const searchInputEl = document.getElementById("search-input");
 const themeToggleEl = document.getElementById("theme-toggle");
+const toggleServersEl = document.getElementById("toggle-servers");
 const toggleSidebarEl = document.getElementById("toggle-sidebar");
 const toggleSidebarIconEl = toggleSidebarEl.querySelector(".button-icon");
 const openHelpEl = document.getElementById("open-help");
@@ -50,6 +58,7 @@ const configSummaryTextEl = document.getElementById("config-summary-text");
 const configFormEl = document.getElementById("config-form");
 const formatDataToggleEl = document.getElementById("format-data-toggle");
 const themeToggleLabelEl = document.getElementById("theme-toggle-label");
+const appShellEl = document.querySelector(".app-shell");
 const mentionPattern = /(@everyone|@here|@\S+)/g;
 const singleMentionPattern = /^(@everyone|@here|@\S+)$/;
 let deferredMessageRender = null;
@@ -80,9 +89,17 @@ function applyFormatData(enabled) {
 
 function applySidebarState(collapsed) {
   state.sidebarCollapsed = Boolean(collapsed);
-  document.querySelector(".app-shell").classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
+  appShellEl.classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
   toggleSidebarIconEl.textContent = state.sidebarCollapsed ? ">" : "<";
   localStorage.setItem("viewer-sidebar-collapsed", state.sidebarCollapsed ? "1" : "0");
+}
+
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function applyMobileServersState(open) {
+  appShellEl.classList.toggle("mobile-servers-open", Boolean(open));
 }
 
 function applySettingsState(open) {
@@ -181,8 +198,24 @@ function getMonitorGuilds(monitor) {
   }));
 }
 
+function buildGuildSelectorOptions(guilds) {
+  const byId = new Map((guilds || []).map((guild) => [String(guild.id), guild]));
+  for (const guildId of state.configuredGuildIds) {
+    if (!byId.has(String(guildId))) {
+      byId.set(String(guildId), {
+        id: String(guildId),
+        name: `Configured Guild (${guildId})`,
+        icon_url: null,
+        unavailable: true,
+      });
+    }
+  }
+  return Array.from(byId.values());
+}
+
 function renderGuildSelector(guilds) {
   guildSelectorEl.innerHTML = "";
+  const options = buildGuildSelectorOptions(guilds);
   const selectedGuildIds = new Set(getEffectiveGuildSelection().map(String));
 
   if (!tokenInputEl.value.trim()) {
@@ -190,12 +223,12 @@ function renderGuildSelector(guilds) {
     return;
   }
 
-  if (guilds.length === 0) {
+  if (options.length === 0) {
     guildSelectorEl.innerHTML = '<p class="sidebar-meta">No servers discovered yet. Save and start to connect the bot and load its guilds.</p>';
     return;
   }
 
-  for (const guild of guilds) {
+  for (const guild of options) {
     const option = document.createElement("label");
     option.className = "guild-option";
     option.innerHTML = `
@@ -206,6 +239,9 @@ function renderGuildSelector(guilds) {
       </span>
     `;
     option.querySelector(".guild-option-name").textContent = guild.name;
+    if (guild.unavailable) {
+      option.querySelector(".guild-option-meta").textContent = `${guild.id} (currently unavailable)`;
+    }
     const input = option.querySelector("input");
     input.checked = selectedGuildIds.has(String(guild.id));
     input.addEventListener("change", () => {
@@ -251,6 +287,9 @@ function renderServers(guilds) {
     button.addEventListener("click", () => {
       state.selectedGuild = guild.id;
       state.selectedChannel = null;
+      if (isMobileViewport()) {
+        applyMobileServersState(false);
+      }
       fetchState();
     });
     serverListEl.appendChild(button);
@@ -260,13 +299,21 @@ function renderServers(guilds) {
 function updateMonitorUI(monitor) {
   const safeMonitor = monitor || { running: false, error: null, guild_ids: [], guilds: [] };
   const hasConfig = tokenInputEl.value.trim() && getEffectiveGuildSelection().length > 0;
+  const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
+  const selectedGuildStatus = (safeMonitor.guilds || []).find(
+    (guild) => String(guild.id) === selectedGuildId
+  );
   const monitoredGuilds = (safeMonitor.guilds || []).filter((guild) => guild.monitored);
   monitorBadgeEl.classList.remove("live", "error");
 
   if (safeMonitor.running && monitoredGuilds.length > 0) {
     monitorBadgeEl.textContent = "Live";
     monitorBadgeEl.classList.add("live");
-    statusTextEl.textContent = "Monitoring live";
+    if (selectedGuildId && selectedGuildStatus && !selectedGuildStatus.monitored) {
+      statusTextEl.textContent = "Viewing unmonitored server";
+    } else {
+      statusTextEl.textContent = "Monitoring live";
+    }
     configHelpEl.textContent = `Watching ${monitoredGuilds.length} guild${monitoredGuilds.length === 1 ? "" : "s"}.`;
     refreshConfigVisibility();
     return;
@@ -541,7 +588,8 @@ function renderPlainMessageContent(container, content) {
   }
 }
 
-async function fetchState() {
+function buildStateRequestParams(options = {}) {
+  const { beforeLine = null, limitOverride = null } = options;
   const params = new URLSearchParams();
   if (state.selectedGuild) {
     params.set("guild", state.selectedGuild);
@@ -552,13 +600,74 @@ async function fetchState() {
   if (state.searchQuery) {
     params.set("q", state.searchQuery);
   }
+  params.set("limit", String(limitOverride || state.messagePageSize));
+  if (beforeLine) {
+    params.set("before_line", String(beforeLine));
+  }
+  return params;
+}
 
-  const response = await fetch(`/api/state?${params.toString()}`, { cache: "no-store" });
+function currentQueryKey() {
+  return [
+    state.selectedGuild || "",
+    state.selectedChannel || "",
+    state.searchQuery || "",
+  ].join("|");
+}
+
+function mergeMessages(existing, incoming) {
+  const byLine = new Map();
+  for (const message of existing) {
+    byLine.set(message.line_number, message);
+  }
+  for (const message of incoming) {
+    byLine.set(message.line_number, message);
+  }
+  return Array.from(byLine.values()).sort((a, b) => a.line_number - b.line_number);
+}
+
+function updateLoadedMessageBounds() {
+  if (!state.loadedMessages.length) {
+    state.oldestLoadedLine = null;
+    state.newestLoadedLine = null;
+    return;
+  }
+  state.oldestLoadedLine = state.loadedMessages[0].line_number;
+  state.newestLoadedLine = state.loadedMessages[state.loadedMessages.length - 1].line_number;
+}
+
+function applyMessagePage(payload, { appendMode = false } = {}) {
+  if (!appendMode) {
+    state.loadedMessages = payload.messages;
+    state.hasMoreOlder = payload.has_more_older;
+    updateLoadedMessageBounds();
+    return;
+  }
+
+  state.loadedMessages = mergeMessages(payload.messages, state.loadedMessages);
+  state.hasMoreOlder = payload.has_more_older;
+  updateLoadedMessageBounds();
+}
+
+async function fetchState(options = {}) {
+  const { beforeLine = null, appendMode = false } = options;
+  const requestParams = buildStateRequestParams({ beforeLine });
+  const response = await fetch(`/api/state?${requestParams.toString()}`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Request failed with ${response.status}`);
   }
 
   const payload = await response.json();
+  const queryKey = currentQueryKey();
+  const selectionChanged = state.queryKey !== queryKey && !appendMode;
+  if (selectionChanged) {
+    state.loadedMessages = [];
+    state.oldestLoadedLine = null;
+    state.newestLoadedLine = null;
+    state.hasMoreOlder = false;
+  }
+  state.queryKey = queryKey;
+
   const monitorGuilds = getMonitorGuilds(payload.monitor);
   const guilds = mergeGuilds(payload.guilds, monitorGuilds);
   state.guilds = guilds;
@@ -582,17 +691,78 @@ async function fetchState() {
   renderServers(guilds);
   renderChannels(payload.channels);
 
+  if (appendMode) {
+    applyMessagePage(payload, { appendMode: true });
+  } else {
+    state.loadedMessages = mergeMessages(state.loadedMessages, payload.messages);
+    if (!state.loadedMessages.length) {
+      applyMessagePage(payload);
+    } else {
+      updateLoadedMessageBounds();
+      if (state.hasMoreOlder === false) {
+        state.hasMoreOlder = payload.has_more_older;
+      } else {
+        state.hasMoreOlder = state.hasMoreOlder || payload.has_more_older;
+      }
+    }
+  }
+
   if (hasProtectedMessageSelection()) {
     deferredMessageRender = {
-      messages: payload.messages,
+      messages: state.loadedMessages,
       channels: payload.channels,
     };
     return;
   }
 
-  renderMessages(payload.messages, payload.channels);
+  renderMessages(state.loadedMessages, payload.channels);
   deferredMessageRender = null;
 }
+
+async function fetchOlderMessages() {
+  if (state.loadingOlder || !state.hasMoreOlder || !state.oldestLoadedLine) {
+    return;
+  }
+  state.loadingOlder = true;
+  const previousHeight = messageListEl.scrollHeight;
+  const previousTop = messageListEl.scrollTop;
+
+  try {
+    await fetchState({
+      beforeLine: state.oldestLoadedLine,
+      appendMode: true,
+    });
+    const delta = messageListEl.scrollHeight - previousHeight;
+    messageListEl.scrollTop = previousTop + delta;
+  } finally {
+    state.loadingOlder = false;
+  }
+}
+
+async function fetchLatestState() {
+  await fetchState({ appendMode: false });
+}
+
+async function tick() {
+  try {
+    await fetchLatestState();
+  } catch (error) {
+    statusTextEl.textContent = "Connection issue";
+    refreshTextEl.textContent = error.message;
+  }
+}
+
+/*
+ * Keep history loading lazy: when users scroll near the top, fetch older chunks.
+ */
+messageListEl.addEventListener("scroll", () => {
+  if (messageListEl.scrollTop < 140) {
+    fetchOlderMessages().catch((error) => {
+      statusTextEl.textContent = "Connection issue";
+      refreshTextEl.textContent = error.message;
+    });
+  }
+});
 
 async function fetchConfig() {
   const response = await fetch("/api/config", { cache: "no-store" });
@@ -647,14 +817,7 @@ async function stopMonitor() {
   updateMonitorUI(payload.monitor);
 }
 
-async function tick() {
-  try {
-    await fetchState();
-  } catch (error) {
-    statusTextEl.textContent = "Connection issue";
-    refreshTextEl.textContent = error.message;
-  }
-}
+// Legacy function retained temporarily for patch context; do not call.
 
 let searchDebounceHandle = null;
 
@@ -715,6 +878,10 @@ toggleSidebarEl.addEventListener("click", () => {
   applySidebarState(!state.sidebarCollapsed);
 });
 
+toggleServersEl.addEventListener("click", () => {
+  applyMobileServersState(!appShellEl.classList.contains("mobile-servers-open"));
+});
+
 openSettingsEl.addEventListener("click", () => {
   applySettingsState(!state.settingsOpen);
 });
@@ -760,6 +927,12 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("selectionchange", () => {
   flushDeferredMessageRender();
+});
+
+window.addEventListener("resize", () => {
+  if (!isMobileViewport()) {
+    applyMobileServersState(false);
+  }
 });
 
 applyTheme(localStorage.getItem("viewer-theme") || "dark");

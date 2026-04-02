@@ -723,6 +723,10 @@ body.light-mode .modal-backdrop {
   background: var(--bg-hover);
 }
 
+.mobile-servers-toggle {
+  display: none;
+}
+
 .message-list {
   min-height: 0;
   overflow-y: auto;
@@ -931,7 +935,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .server-rail {
-    display: flex;
+    display: none;
     flex-direction: row;
     align-items: center;
     min-height: 76px;
@@ -940,6 +944,16 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     gap: 12px;
     border-right: 0;
     border-bottom: 1px solid var(--border);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 14;
+    box-shadow: var(--shadow);
+  }
+
+  .app-shell.mobile-servers-open .server-rail {
+    display: flex;
   }
 
   .server-rail-header {
@@ -1016,6 +1030,13 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     gap: 8px;
   }
 
+  .mobile-servers-toggle {
+    display: inline-flex;
+    min-width: 0;
+    padding: 10px 12px;
+    flex: 0 0 auto;
+  }
+
   .header-controls {
     width: 100%;
     flex-direction: row;
@@ -1041,10 +1062,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .header-meta {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: 0.84rem;
+    display: none;
   }
 
   .channel-groups {
@@ -1122,6 +1140,23 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+
+  .header-main .eyebrow {
+    display: none;
+  }
+
+  .header-main h2 {
+    font-size: 1.1rem;
+    line-height: 1.25;
+  }
+
+  .header-subtle {
+    margin-top: 2px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1141,10 +1176,6 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
 
   .chat-header {
     padding: 12px 12px 10px;
-  }
-
-  .header-main h2 {
-    font-size: 1.15rem;
   }
 
   .header-subtle,

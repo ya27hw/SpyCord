@@ -250,12 +250,26 @@ def create_app_server(
             selected_guild = params.get("guild", [None])[0]
             selected_channel = params.get("channel", [None])[0]
             search_query = params.get("q", [""])[0]
+            raw_limit = params.get("limit", [str(message_limit)])[0]
+            try:
+                requested_limit = int(raw_limit)
+            except ValueError:
+                requested_limit = message_limit
+            requested_limit = max(1, min(requested_limit, message_limit))
+
+            raw_before_line = params.get("before_line", [None])[0]
+            try:
+                before_line = int(raw_before_line) if raw_before_line is not None else None
+            except ValueError:
+                before_line = None
+
             payload = build_state(
                 log_path,
                 selected_guild,
                 selected_channel,
-                message_limit,
+                requested_limit,
                 search_query,
+                before_line,
             )
             payload["monitor"] = manager.status()
             self.send_json(HTTPStatus.OK, payload)

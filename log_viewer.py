@@ -153,6 +153,7 @@ def build_state(
     selected_channel: str | None,
     limit: int,
     search_query: str,
+    before_line: int | None = None,
 ) -> dict[str, Any]:
     messages, channels, guilds, default_guild, default_channel = parse_log_file(log_path)
     active_guild = selected_guild or default_guild
@@ -175,6 +176,10 @@ def build_state(
         filtered = messages
 
     filtered = [message for message in filtered if message_matches_search(message, search_query)]
+    if before_line is not None:
+        filtered = [message for message in filtered if message.line_number < before_line]
+
+    has_more_older = len(filtered) > limit
     filtered = filtered[-limit:]
     last_updated = log_path.stat().st_mtime if log_path.exists() else None
 
@@ -186,6 +191,9 @@ def build_state(
         "selected_channel": active_channel,
         "search_query": search_query,
         "messages": [message.to_dict() for message in filtered],
+        "has_more_older": has_more_older,
+        "oldest_line": filtered[0].line_number if filtered else None,
+        "newest_line": filtered[-1].line_number if filtered else None,
         "last_updated": last_updated,
         "available": log_path.exists(),
     }
@@ -213,7 +221,27 @@ class LogViewerHandler(BaseHTTPRequestHandler):
         selected_guild = params.get("guild", [None])[0]
         selected_channel = params.get("channel", [None])[0]
         search_query = params.get("q", [""])[0]
-        state = build_state(self.log_path, selected_guild, selected_channel, self.message_limit, search_query)
+        raw_limit = params.get("limit", [str(self.message_limit)])[0]
+        try:
+            requested_limit = int(raw_limit)
+        except ValueError:
+            requested_limit = self.message_limit
+        requested_limit = max(1, min(requested_limit, self.message_limit))
+
+        raw_before_line = params.get("before_line", [None])[0]
+        try:
+            before_line = int(raw_before_line) if raw_before_line is not None else None
+        except ValueError:
+            before_line = None
+
+        state = build_state(
+            self.log_path,
+            selected_guild,
+            selected_channel,
+            requested_limit,
+            search_query,
+            before_line,
+        )
         payload = json.dumps(state).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json; charset=utf-8")
