@@ -95,11 +95,20 @@
             <label class="field-label" for="token-input">Bot Token</label>
             <input id="token-input" class="config-input" type="password" placeholder="Paste your Discord bot token">
 
+            <label class="field-label" for="webhook-input">Notification Webhook URL (Optional)</label>
+            <input id="webhook-input" class="config-input" type="url" placeholder="https://discord.com/api/webhooks/...">
+
             <div class="guild-selector-header">
               <label class="field-label" for="guild-selector">Servers To Monitor</label>
               <span class="sidebar-meta">Choose from the guilds this bot can already see.</span>
             </div>
             <div id="guild-selector" class="guild-selector"></div>
+
+            <div class="guild-selector-header">
+              <label class="field-label" for="channel-selector">Channels To Monitor (Optional)</label>
+              <span class="sidebar-meta">Leave all unchecked to monitor every channel in selected servers.</span>
+            </div>
+            <div id="channel-selector" class="guild-selector"></div>
 
             <div class="viewer-preferences">
               <p class="field-label">Viewer Preferences</p>

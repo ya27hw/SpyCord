@@ -99,16 +99,15 @@ http://127.0.0.1:8765
 
 ---
 
-## Step 6: Enter Your Bot Token And Guild IDs
+## Step 6: Enter Your Bot Token, Servers, And Channels
 
 When the page opens:
 
 1. Paste your Discord bot token into the `Bot Token` box.
-2. Paste one or more guild IDs into the `Guild IDs` box.
-3. You can enter guild IDs:
-   - one per line
-   - or comma-separated
-4. Click `Save and Start`.
+2. (Optional) Paste a Discord webhook URL into `Notification Webhook URL` to receive alerts.
+3. Select one or more discovered servers in `Servers To Monitor`.
+4. (Optional) Select specific channels in `Channels To Monitor`.
+5. Click `Save and Start`.
 
 SpyCord will then begin monitoring and the dashboard will start filling with messages.
 
@@ -132,7 +131,7 @@ Paste that number into SpyCord.
 
 The dashboard includes:
 
-- a setup panel for your token and guild IDs
+- a setup panel for your token, servers, channels, and optional webhook URL
 - a live/idle status badge
 - a channel list grouped by category
 - a search box for filtering messages
@@ -153,7 +152,9 @@ spycord_config.json
 This file stores:
 
 - your bot token
-- your guild IDs
+- your selected guild IDs
+- your selected channel IDs
+- your optional Discord webhook URL
 
 Keep that file private.
 
@@ -175,7 +176,7 @@ Keep that file private.
 Check these:
 
 - the bot token is correct
-- the guild ID is correct
+- at least one server is selected
 - the bot is actually in that server
 - the bot can see the target channels
 
@@ -201,7 +202,7 @@ Usually this means one of these:
 - the bot cannot access the guild
 - Discord rejected the connection
 
-Re-check the token and guild IDs first.
+Re-check the token and selected servers first.
 
 ---
 
@@ -216,7 +217,7 @@ pip install discord.py
 python app.py
 ```
 
-Then open `http://127.0.0.1:8765`, enter your bot token and guild IDs, and click `Save and Start`.
+Then open `http://127.0.0.1:8765`, enter your bot token, choose servers/channels, and click `Save and Start`.
 
 ---
 

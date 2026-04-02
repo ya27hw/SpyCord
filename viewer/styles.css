@@ -152,6 +152,18 @@ body {
   padding: 0;
 }
 
+.server-unread-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ff4d4f;
+  border: 2px solid var(--rail-bg, rgba(18, 19, 22, 0.94));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
 .server-button::before {
   content: "";
   position: absolute;

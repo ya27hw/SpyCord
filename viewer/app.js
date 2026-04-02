@@ -9,9 +9,14 @@ const state = {
   helpOpen: false,
   settingsOpen: false,
   guilds: [],
+  monitorGuilds: [],
   configuredGuildIds: [],
   draftGuildIds: [],
   guildSelectionDirty: false,
+  configuredChannelIds: [],
+  draftChannelIds: [],
+  channelSelectionDirty: false,
+  webhookUrl: "",
   formatData: true,
   messagePageSize: 80,
   loadedMessages: [],
@@ -20,6 +25,9 @@ const state = {
   hasMoreOlder: false,
   loadingOlder: false,
   queryKey: "",
+  guildLatestById: {},
+  unreadGuildIds: new Set(),
+  unreadTrackingReady: false,
 };
 
 const serverListEl = document.getElementById("server-list");
@@ -48,6 +56,8 @@ const helpModalEl = document.getElementById("help-modal");
 const settingsModalEl = document.getElementById("settings-modal");
 const tokenInputEl = document.getElementById("token-input");
 const guildSelectorEl = document.getElementById("guild-selector");
+const channelSelectorEl = document.getElementById("channel-selector");
+const webhookInputEl = document.getElementById("webhook-input");
 const saveConfigEl = document.getElementById("save-config");
 const stopMonitorEl = document.getElementById("stop-monitor");
 const configHelpEl = document.getElementById("config-help");
@@ -138,8 +148,53 @@ function getSelectedGuildIds() {
     .filter(Boolean);
 }
 
+function getSelectedChannelIds() {
+  const checkboxes = Array.from(channelSelectorEl.querySelectorAll("input[type='checkbox']"));
+  if (checkboxes.length === 0) {
+    return getEffectiveChannelSelection().map(String);
+  }
+  return checkboxes
+    .filter((input) => input.checked)
+    .map((input) => input.value)
+    .filter(Boolean);
+}
+
 function getEffectiveGuildSelection() {
   return state.guildSelectionDirty ? state.draftGuildIds : state.configuredGuildIds;
+}
+
+function getEffectiveChannelSelection() {
+  return state.channelSelectionDirty ? state.draftChannelIds : state.configuredChannelIds;
+}
+
+function getAvailableChannelMap(monitorGuilds, selectedGuildIds) {
+  const selectedSet = new Set((selectedGuildIds || []).map(String));
+  const channelMap = new Map();
+  for (const guild of monitorGuilds || []) {
+    if (!selectedSet.has(String(guild.id))) {
+      continue;
+    }
+    for (const channel of guild.channels || []) {
+      channelMap.set(String(channel.id), {
+        id: String(channel.id),
+        name: channel.name || "unknown-channel",
+        guild_id: String(guild.id),
+        guild_name: guild.name || "Unknown Server",
+        category: channel.category || "No Category",
+      });
+    }
+  }
+  return channelMap;
+}
+
+function normalizeSelectedChannels(channelIds, monitorGuilds, selectedGuildIds) {
+  const channelMap = getAvailableChannelMap(monitorGuilds, selectedGuildIds);
+  if (!channelMap.size) {
+    return [...channelIds];
+  }
+  return (channelIds || [])
+    .map(String)
+    .filter((channelId) => channelMap.has(String(channelId)));
 }
 
 function shouldAutoOpenSettings(config, monitor) {
@@ -160,6 +215,7 @@ function shouldAutoOpenSettings(config, monitor) {
 
 function refreshConfigVisibility() {
   const guildCount = getEffectiveGuildSelection().length;
+  const channelCount = getEffectiveChannelSelection().length;
   const hasConfig = tokenInputEl.value.trim() && guildCount > 0;
   const showCollapsed = hasConfig && !state.configExpanded;
 
@@ -169,7 +225,10 @@ function refreshConfigVisibility() {
   toggleConfigLabelEl.textContent = showCollapsed ? "Edit" : "Hide";
 
   if (hasConfig) {
-    configSummaryTextEl.textContent = `Saved token with ${guildCount} guild${guildCount === 1 ? "" : "s"} configured.`;
+    const channelText = channelCount
+      ? `${channelCount} channel${channelCount === 1 ? "" : "s"} selected`
+      : "all channels selected";
+    configSummaryTextEl.textContent = `Saved token with ${guildCount} guild${guildCount === 1 ? "" : "s"} configured (${channelText}).`;
   } else if (tokenInputEl.value.trim()) {
     configSummaryTextEl.textContent = "Token saved. Choose which discovered servers to monitor.";
   }
@@ -203,11 +262,76 @@ function mergeGuilds(logGuilds, monitorGuilds) {
   return Array.from(guildMap.values());
 }
 
+function compareTimestamps(left, right) {
+  const leftMs = Date.parse(left || "");
+  const rightMs = Date.parse(right || "");
+  const leftIsNum = !Number.isNaN(leftMs);
+  const rightIsNum = !Number.isNaN(rightMs);
+
+  if (leftIsNum && rightIsNum) {
+    return leftMs - rightMs;
+  }
+  return String(left || "").localeCompare(String(right || ""));
+}
+
+function computeLatestByGuild(channels) {
+  const latestByGuild = {};
+  for (const channel of channels || []) {
+    const guildId = String(channel.guild_id || "");
+    if (!guildId) {
+      continue;
+    }
+    const lastTimestamp = channel.last_timestamp || "";
+    const existing = latestByGuild[guildId];
+    if (!existing || compareTimestamps(lastTimestamp, existing) > 0) {
+      latestByGuild[guildId] = lastTimestamp;
+    }
+  }
+  return latestByGuild;
+}
+
+function updateUnreadGuilds(channels) {
+  const latestByGuild = computeLatestByGuild(channels);
+  const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
+
+  if (!state.unreadTrackingReady) {
+    state.guildLatestById = latestByGuild;
+    state.unreadTrackingReady = true;
+    if (selectedGuildId) {
+      state.unreadGuildIds.delete(selectedGuildId);
+    }
+    return;
+  }
+
+  for (const [guildId, latestTimestamp] of Object.entries(latestByGuild)) {
+    const previousTimestamp = state.guildLatestById[guildId];
+    const hasAdvanced =
+      previousTimestamp === undefined
+        ? Boolean(latestTimestamp)
+        : compareTimestamps(latestTimestamp, previousTimestamp) > 0;
+
+    if (hasAdvanced && guildId !== selectedGuildId) {
+      state.unreadGuildIds.add(guildId);
+    }
+  }
+
+  state.guildLatestById = { ...state.guildLatestById, ...latestByGuild };
+  if (selectedGuildId) {
+    state.unreadGuildIds.delete(selectedGuildId);
+  }
+}
+
 function getMonitorGuilds(monitor) {
   return (monitor?.guilds || []).map((guild) => ({
     id: String(guild.id),
     name: guild.name || "Unknown Server",
     icon_url: guild.icon_url || null,
+    channels: (guild.channels || []).map((channel) => ({
+      id: String(channel.id),
+      name: channel.name || "unknown-channel",
+      category: channel.category || "No Category",
+      monitored: Boolean(channel.monitored),
+    })),
   }));
 }
 
@@ -260,9 +384,101 @@ function renderGuildSelector(guilds) {
     input.addEventListener("change", () => {
       state.draftGuildIds = getSelectedGuildIds();
       state.guildSelectionDirty = true;
+      state.draftChannelIds = normalizeSelectedChannels(
+        getEffectiveChannelSelection(),
+        state.monitorGuilds,
+        state.draftGuildIds,
+      );
+      state.channelSelectionDirty = true;
+      renderChannelSelector(state.monitorGuilds);
       refreshConfigVisibility();
     });
     guildSelectorEl.appendChild(option);
+  }
+}
+
+function renderChannelSelector(monitorGuilds) {
+  channelSelectorEl.innerHTML = "";
+  const selectedGuildIds = getEffectiveGuildSelection();
+  const selectedGuildSet = new Set(selectedGuildIds.map(String));
+  const selectedChannelIds = new Set(getEffectiveChannelSelection().map(String));
+
+  if (!tokenInputEl.value.trim()) {
+    channelSelectorEl.innerHTML = '<p class="sidebar-meta">Save a bot token first to load channels.</p>';
+    return;
+  }
+
+  if (!selectedGuildIds.length) {
+    channelSelectorEl.innerHTML = '<p class="sidebar-meta">Select at least one server before choosing channels.</p>';
+    return;
+  }
+
+  const groups = [];
+  const byId = new Map();
+  for (const guild of monitorGuilds || []) {
+    if (!selectedGuildSet.has(String(guild.id))) {
+      continue;
+    }
+    for (const channel of guild.channels || []) {
+      const normalized = {
+        id: String(channel.id),
+        name: channel.name || "unknown-channel",
+        guild_name: guild.name || "Unknown Server",
+        category: channel.category || "No Category",
+      };
+      groups.push(normalized);
+      byId.set(normalized.id, normalized);
+    }
+  }
+
+  if (!groups.length) {
+    channelSelectorEl.innerHTML = '<p class="sidebar-meta">No channel list available yet. Save and start to discover channels.</p>';
+    return;
+  }
+
+  for (const channelId of selectedChannelIds) {
+    if (!byId.has(channelId)) {
+      byId.set(channelId, {
+        id: channelId,
+        name: `Configured Channel (${channelId})`,
+        guild_name: "Unavailable",
+        category: "Unavailable",
+      });
+    }
+  }
+
+  const options = Array.from(byId.values()).sort((a, b) => {
+    const guildCmp = a.guild_name.localeCompare(b.guild_name);
+    if (guildCmp !== 0) {
+      return guildCmp;
+    }
+    const categoryCmp = a.category.localeCompare(b.category);
+    if (categoryCmp !== 0) {
+      return categoryCmp;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  for (const channel of options) {
+    const option = document.createElement("label");
+    option.className = "guild-option";
+    option.innerHTML = `
+      <input type="checkbox" value="${channel.id}">
+      <span class="guild-option-label">
+        <span class="guild-option-name"></span>
+        <span class="guild-option-meta"></span>
+      </span>
+    `;
+    option.querySelector(".guild-option-name").textContent = `#${channel.name}`;
+    option.querySelector(".guild-option-meta").textContent = `${channel.guild_name} / ${channel.category} (${channel.id})`;
+    const input = option.querySelector("input");
+    input.checked = selectedChannelIds.has(String(channel.id));
+    input.addEventListener("change", () => {
+      state.draftChannelIds = getSelectedChannelIds();
+      state.channelSelectionDirty = true;
+      refreshConfigVisibility();
+    });
+    channelSelectorEl.appendChild(option);
   }
 }
 
@@ -297,9 +513,17 @@ function renderServers(guilds) {
 
     button.title = guild.name;
     button.appendChild(avatar);
+    const hasUnread = state.unreadGuildIds.has(String(guild.id));
+    if (hasUnread) {
+      const unreadDot = document.createElement("span");
+      unreadDot.className = "server-unread-indicator";
+      unreadDot.setAttribute("aria-label", "Unread messages");
+      button.appendChild(unreadDot);
+    }
     button.addEventListener("click", () => {
       state.selectedGuild = guild.id;
       state.selectedChannel = null;
+      state.unreadGuildIds.delete(String(guild.id));
       if (isMobileViewport()) {
         applyMobileServersState(false);
         applyMobileChannelsState(false);
@@ -311,7 +535,14 @@ function renderServers(guilds) {
 }
 
 function updateMonitorUI(monitor) {
-  const safeMonitor = monitor || { running: false, error: null, guild_ids: [], guilds: [] };
+  const safeMonitor = monitor || {
+    running: false,
+    error: null,
+    guild_ids: [],
+    channel_ids: [],
+    webhook_configured: false,
+    guilds: [],
+  };
   const hasConfig = tokenInputEl.value.trim() && getEffectiveGuildSelection().length > 0;
   const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
   const selectedGuildStatus = (safeMonitor.guilds || []).find(
@@ -321,6 +552,7 @@ function updateMonitorUI(monitor) {
   monitorBadgeEl.classList.remove("live", "error");
 
   if (safeMonitor.running && monitoredGuilds.length > 0) {
+    const monitoredChannelCount = (safeMonitor.channel_ids || []).length;
     monitorBadgeEl.textContent = "Live";
     monitorBadgeEl.classList.add("live");
     if (selectedGuildId && selectedGuildStatus && !selectedGuildStatus.monitored) {
@@ -328,7 +560,11 @@ function updateMonitorUI(monitor) {
     } else {
       statusTextEl.textContent = "Monitoring live";
     }
-    configHelpEl.textContent = `Watching ${monitoredGuilds.length} guild${monitoredGuilds.length === 1 ? "" : "s"}.`;
+    const channelInfo = monitoredChannelCount
+      ? `${monitoredChannelCount} selected channel${monitoredChannelCount === 1 ? "" : "s"}`
+      : "all channels in selected servers";
+    const webhookInfo = safeMonitor.webhook_configured ? "webhook alerts enabled" : "webhook alerts disabled";
+    configHelpEl.textContent = `Watching ${monitoredGuilds.length} guild${monitoredGuilds.length === 1 ? "" : "s"} (${channelInfo}, ${webhookInfo}).`;
     refreshConfigVisibility();
     return;
   }
@@ -356,7 +592,7 @@ function updateMonitorUI(monitor) {
   statusTextEl.textContent = hasConfig ? "Saved, not running" : "Awaiting setup";
   configHelpEl.textContent = hasConfig
     ? "Saved locally. Press Save and Start to reconnect."
-    : "Enter a bot token and one or more guild IDs to begin.";
+    : "Enter a bot token and select one or more servers to begin.";
   refreshConfigVisibility();
 }
 
@@ -686,10 +922,12 @@ async function fetchState(options = {}) {
   state.queryKey = queryKey;
 
   const monitorGuilds = getMonitorGuilds(payload.monitor);
+  state.monitorGuilds = monitorGuilds;
   const guilds = mergeGuilds(payload.guilds, monitorGuilds);
   state.guilds = guilds;
   state.selectedGuild = payload.selected_guild;
   state.selectedChannel = payload.selected_channel;
+  updateUnreadGuilds(payload.channels);
   state.lastUpdated = payload.last_updated;
   state.searchQuery = payload.search_query;
   if (searchInputEl.value !== state.searchQuery) {
@@ -705,6 +943,7 @@ async function fetchState(options = {}) {
 
   updateMonitorUI(payload.monitor);
   renderGuildSelector(monitorGuilds);
+  renderChannelSelector(monitorGuilds);
   renderServers(guilds);
   renderChannels(payload.channels);
 
@@ -790,16 +1029,26 @@ async function fetchConfig() {
   const payload = await response.json();
   tokenInputEl.value = payload.config.token || "";
   state.configuredGuildIds = (payload.config.guild_ids || []).map((guildId) => String(guildId));
+  state.configuredChannelIds = (payload.config.channel_ids || []).map((channelId) => String(channelId));
   state.draftGuildIds = [...state.configuredGuildIds];
+  state.draftChannelIds = [...state.configuredChannelIds];
   state.guildSelectionDirty = false;
+  state.channelSelectionDirty = false;
+  state.webhookUrl = payload.config.webhook_url || "";
+  webhookInputEl.value = state.webhookUrl;
   state.configExpanded = !(payload.config.token && (payload.config.guild_ids || []).length > 0);
   applySettingsState(shouldAutoOpenSettings(payload.config, payload.monitor));
   updateMonitorUI(payload.monitor);
-  renderGuildSelector(getMonitorGuilds(payload.monitor));
+  const monitorGuilds = getMonitorGuilds(payload.monitor);
+  state.monitorGuilds = monitorGuilds;
+  renderGuildSelector(monitorGuilds);
+  renderChannelSelector(monitorGuilds);
 }
 
 async function saveConfigAndStart() {
   const guildIds = getSelectedGuildIds();
+  const channelIds = getSelectedChannelIds();
+  const webhookUrl = webhookInputEl.value.trim();
 
   const response = await fetch("/api/config", {
     method: "POST",
@@ -807,6 +1056,8 @@ async function saveConfigAndStart() {
     body: JSON.stringify({
       token: tokenInputEl.value.trim(),
       guild_ids: guildIds,
+      channel_ids: channelIds,
+      webhook_url: webhookUrl,
       start_monitor: true,
     }),
   });
@@ -817,8 +1068,12 @@ async function saveConfigAndStart() {
 
   const payload = await response.json();
   state.configuredGuildIds = guildIds;
+  state.configuredChannelIds = channelIds;
   state.draftGuildIds = [...guildIds];
+  state.draftChannelIds = [...channelIds];
   state.guildSelectionDirty = false;
+  state.channelSelectionDirty = false;
+  state.webhookUrl = webhookUrl;
   state.configExpanded = false;
   applySettingsState(false);
   updateMonitorUI(payload.monitor);
@@ -880,6 +1135,12 @@ toggleConfigEl.addEventListener("click", () => {
 });
 
 tokenInputEl.addEventListener("input", () => {
+  renderGuildSelector(state.monitorGuilds);
+  renderChannelSelector(state.monitorGuilds);
+  refreshConfigVisibility();
+});
+
+webhookInputEl.addEventListener("input", () => {
   refreshConfigVisibility();
 });
 
