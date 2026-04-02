@@ -88,7 +88,8 @@ def log_entry(
 
 
 async def send_webhook_notification(
-    webhook: discord.Webhook | None,
+    webhook_session: aiohttp.ClientSession | None,
+    webhook_url: str | None,
     *,
     guild_name: str,
     channel_name: str,
@@ -97,28 +98,37 @@ async def send_webhook_notification(
     message_url: str,
     message_timestamp: str,
 ):
-    if webhook is None:
+    if webhook_session is None or not webhook_url:
         return
 
     safe_content = content if len(content) <= 4000 else f"{content[:3997]}..."
-    embed = discord.Embed(
-        title=f"New Message in #{channel_name}",
-        description=safe_content,
-        color=discord.Color.red(),
-    )
-    embed.add_field(name="Server", value=guild_name, inline=True)
-    embed.add_field(name="Author", value=author, inline=True)
+    embed_fields = [
+        {"name": "Server", "value": guild_name or "Unknown Server", "inline": True},
+        {"name": "Author", "value": author or "Unknown Author", "inline": True},
+    ]
     if message_url:
-        embed.add_field(name="Jump To Message", value=f"[Open Message]({message_url})", inline=False)
+        embed_fields.append({"name": "Jump To Message", "value": f"[Open Message]({message_url})", "inline": False})
     if message_timestamp:
-        embed.add_field(name="Timestamp", value=message_timestamp, inline=False)
-    embed.set_footer(text="SpyCord Notification")
-    await webhook.send(
-        content="New monitored message received.",
-        embed=embed,
-        username="SpyCord Alerts",
-        wait=False,
-    )
+        embed_fields.append({"name": "Timestamp", "value": message_timestamp, "inline": False})
+
+    payload = {
+        "username": "SpyCord Alerts",
+        "content": "New monitored message received.",
+        "embeds": [
+            {
+                "title": f"New Message in #{channel_name}",
+                "description": safe_content,
+                "color": 15158332,
+                "fields": embed_fields,
+                "footer": {"text": "SpyCord Notification"},
+            }
+        ],
+    }
+
+    async with webhook_session.post(webhook_url, json=payload) as response:
+        if response.status >= 400:
+            error_text = await response.text()
+            raise RuntimeError(f"Webhook POST failed ({response.status}): {error_text[:400]}")
 
 
 def install_read_only_guards():
@@ -161,7 +171,6 @@ def create_client(
     )
     bot.spycord_guilds = []
     bot.spycord_webhook_session = None
-    bot.spycord_webhook = None
 
     @bot.event
     async def on_ready():
@@ -191,9 +200,11 @@ def create_client(
             )
         bot.spycord_guilds = guild_entries
 
+        if webhook_enabled and not webhook_url:
+            logger.warning("Webhook alerts are enabled, but no webhook URL is configured.")
+
         if webhook_enabled and webhook_url and bot.spycord_webhook_session is None:
             bot.spycord_webhook_session = aiohttp.ClientSession()
-            bot.spycord_webhook = discord.Webhook.from_url(webhook_url, session=bot.spycord_webhook_session)
 
         if webhook_url and target_channel_ids:
             unavailable_channels = sorted(target_channel_ids - available_channel_ids)
@@ -246,7 +257,8 @@ def create_client(
 
         try:
             await send_webhook_notification(
-                bot.spycord_webhook,
+                bot.spycord_webhook_session,
+                webhook_url if webhook_enabled else None,
                 guild_name=guild_name,
                 channel_name=channel_name,
                 author=author,
@@ -264,7 +276,6 @@ def create_client(
         if bot.spycord_webhook_session is not None:
             await bot.spycord_webhook_session.close()
             bot.spycord_webhook_session = None
-        bot.spycord_webhook = None
 
     bot.close = close_with_cleanup
 
