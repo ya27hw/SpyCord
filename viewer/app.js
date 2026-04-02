@@ -28,6 +28,7 @@ const logPathEl = document.getElementById("log-path");
 const searchInputEl = document.getElementById("search-input");
 const themeToggleEl = document.getElementById("theme-toggle");
 const toggleSidebarEl = document.getElementById("toggle-sidebar");
+const toggleSidebarIconEl = toggleSidebarEl.querySelector(".button-icon");
 const openHelpEl = document.getElementById("open-help");
 const openSettingsEl = document.getElementById("open-settings");
 const closeHelpEl = document.getElementById("close-help");
@@ -51,6 +52,7 @@ const formatDataToggleEl = document.getElementById("format-data-toggle");
 const themeToggleLabelEl = document.getElementById("theme-toggle-label");
 const mentionPattern = /(@everyone|@here|@\S+)/g;
 const singleMentionPattern = /^(@everyone|@here|@\S+)$/;
+let deferredMessageRender = null;
 
 function eventClassName(eventType) {
   switch (eventType) {
@@ -79,7 +81,7 @@ function applyFormatData(enabled) {
 function applySidebarState(collapsed) {
   state.sidebarCollapsed = Boolean(collapsed);
   document.querySelector(".app-shell").classList.toggle("sidebar-collapsed", state.sidebarCollapsed);
-  toggleSidebarEl.textContent = state.sidebarCollapsed ? ">" : "<";
+  toggleSidebarIconEl.textContent = state.sidebarCollapsed ? ">" : "<";
   localStorage.setItem("viewer-sidebar-collapsed", state.sidebarCollapsed ? "1" : "0");
 }
 
@@ -417,6 +419,36 @@ function renderMessages(messages, channels) {
   }
 }
 
+function hasProtectedMessageSelection() {
+  const selection = window.getSelection?.();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+    return false;
+  }
+
+  const anchorNode = selection.anchorNode?.nodeType === Node.TEXT_NODE
+    ? selection.anchorNode.parentNode
+    : selection.anchorNode;
+  const focusNode = selection.focusNode?.nodeType === Node.TEXT_NODE
+    ? selection.focusNode.parentNode
+    : selection.focusNode;
+
+  return Boolean(
+    anchorNode &&
+    focusNode &&
+    messageListEl.contains(anchorNode) &&
+    messageListEl.contains(focusNode)
+  );
+}
+
+function flushDeferredMessageRender() {
+  if (!deferredMessageRender || hasProtectedMessageSelection()) {
+    return;
+  }
+
+  renderMessages(deferredMessageRender.messages, deferredMessageRender.channels);
+  deferredMessageRender = null;
+}
+
 function renderMessageContent(container, content) {
   container.textContent = "";
 
@@ -549,7 +581,17 @@ async function fetchState() {
   renderGuildSelector(monitorGuilds);
   renderServers(guilds);
   renderChannels(payload.channels);
+
+  if (hasProtectedMessageSelection()) {
+    deferredMessageRender = {
+      messages: payload.messages,
+      channels: payload.channels,
+    };
+    return;
+  }
+
   renderMessages(payload.messages, payload.channels);
+  deferredMessageRender = null;
 }
 
 async function fetchConfig() {
@@ -714,6 +756,10 @@ document.addEventListener("keydown", (event) => {
   if (state.settingsOpen) {
     applySettingsState(false);
   }
+});
+
+document.addEventListener("selectionchange", () => {
+  flushDeferredMessageRender();
 });
 
 applyTheme(localStorage.getItem("viewer-theme") || "dark");
