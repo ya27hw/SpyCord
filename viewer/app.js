@@ -35,6 +35,7 @@ const logPathEl = document.getElementById("log-path");
 const searchInputEl = document.getElementById("search-input");
 const themeToggleEl = document.getElementById("theme-toggle");
 const toggleServersEl = document.getElementById("toggle-servers");
+const toggleChannelsEl = document.getElementById("toggle-channels");
 const toggleSidebarEl = document.getElementById("toggle-sidebar");
 const toggleSidebarIconEl = toggleSidebarEl.querySelector(".button-icon");
 const openHelpEl = document.getElementById("open-help");
@@ -99,7 +100,19 @@ function isMobileViewport() {
 }
 
 function applyMobileServersState(open) {
-  appShellEl.classList.toggle("mobile-servers-open", Boolean(open));
+  const shouldOpen = Boolean(open);
+  appShellEl.classList.toggle("mobile-servers-open", shouldOpen);
+  if (shouldOpen) {
+    appShellEl.classList.remove("mobile-channels-open");
+  }
+}
+
+function applyMobileChannelsState(open) {
+  const shouldOpen = Boolean(open);
+  appShellEl.classList.toggle("mobile-channels-open", shouldOpen);
+  if (shouldOpen) {
+    appShellEl.classList.remove("mobile-servers-open");
+  }
 }
 
 function applySettingsState(open) {
@@ -289,6 +302,7 @@ function renderServers(guilds) {
       state.selectedChannel = null;
       if (isMobileViewport()) {
         applyMobileServersState(false);
+        applyMobileChannelsState(false);
       }
       fetchState();
     });
@@ -413,6 +427,9 @@ function renderChannels(channels) {
       `;
       button.addEventListener("click", () => {
         state.selectedChannel = channel.id;
+        if (isMobileViewport()) {
+          applyMobileChannelsState(false);
+        }
         fetchState();
       });
       groupEl.appendChild(button);
@@ -882,6 +899,10 @@ toggleServersEl.addEventListener("click", () => {
   applyMobileServersState(!appShellEl.classList.contains("mobile-servers-open"));
 });
 
+toggleChannelsEl.addEventListener("click", () => {
+  applyMobileChannelsState(!appShellEl.classList.contains("mobile-channels-open"));
+});
+
 openSettingsEl.addEventListener("click", () => {
   applySettingsState(!state.settingsOpen);
 });
@@ -932,6 +953,7 @@ document.addEventListener("selectionchange", () => {
 window.addEventListener("resize", () => {
   if (!isMobileViewport()) {
     applyMobileServersState(false);
+    applyMobileChannelsState(false);
   }
 });
 
