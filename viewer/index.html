@@ -26,7 +26,7 @@
               <span>Add Guild</span>
             </button>
             <button id="open-channel-filter" class="icon-button compact-button" type="button" aria-label="Configure monitored channels">
-              <span class="button-icon" aria-hidden="true">⚙️</span>
+              <span class="button-icon" aria-hidden="true">🎯</span>
               <span>Monitor</span>
             </button>
           </div>
@@ -110,17 +110,14 @@
             <label class="field-label" for="webhook-input">Notification Webhook URL (Optional)</label>
             <input id="webhook-input" class="config-input" type="url" placeholder="https://discord.com/api/webhooks/...">
 
+            <label class="field-label" for="keywords-input">Highlight Keywords (Optional)</label>
+            <textarea id="keywords-input" class="config-textarea" rows="3" placeholder="error, urgent, payment failed"></textarea>
+
             <div class="guild-selector-header">
               <label class="field-label" for="guild-selector">Servers To Monitor</label>
               <span class="sidebar-meta">Choose from the guilds this bot can already see.</span>
             </div>
             <div id="guild-selector" class="guild-selector"></div>
-
-            <div class="guild-selector-header">
-              <label class="field-label" for="channel-selector">Channels To Monitor (Optional)</label>
-              <span class="sidebar-meta">Leave all unchecked to monitor every channel in selected servers.</span>
-            </div>
-            <div id="channel-selector" class="guild-selector"></div>
 
             <div class="viewer-preferences">
               <p class="field-label">Viewer Preferences</p>
@@ -203,13 +200,18 @@
               <span>Close</span>
             </button>
           </div>
-          <label class="setting-toggle">
-            <input id="channel-webhook-toggle" type="checkbox">
-            <span>
-              <strong>Send Discord webhook alerts for monitored channels</strong>
-              <span class="sidebar-meta">Requires a webhook URL in Settings.</span>
-            </span>
-          </label>
+          <fieldset class="radio-group">
+            <legend class="field-label">Webhook Alerts For Monitored Channels</legend>
+            <label class="radio-option">
+              <input id="channel-webhook-on" type="radio" name="channel-webhook-mode" value="on">
+              <span>Enabled</span>
+            </label>
+            <label class="radio-option">
+              <input id="channel-webhook-off" type="radio" name="channel-webhook-mode" value="off">
+              <span>Disabled</span>
+            </label>
+            <p class="sidebar-meta">Requires a webhook URL in Settings.</p>
+          </fieldset>
           <div id="channel-filter-list" class="guild-selector"></div>
           <div class="config-actions">
             <button id="apply-channel-filter" class="primary-button" type="button">

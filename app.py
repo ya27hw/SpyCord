@@ -253,6 +253,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
             "channel_ids": [],
             "webhook_url": "",
             "webhook_enabled": False,
+            "keywords": [],
         }
 
     with config_path.open("r", encoding="utf-8") as handle:
@@ -264,6 +265,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
         "channel_ids": [int(channel_id) for channel_id in data.get("channel_ids", [])],
         "webhook_url": str(data.get("webhook_url", "")).strip(),
         "webhook_enabled": bool(data.get("webhook_enabled", False)),
+        "keywords": [str(keyword).strip() for keyword in data.get("keywords", []) if str(keyword).strip()],
     }
 
 
@@ -274,6 +276,7 @@ def serialize_config(config: dict[str, Any]) -> dict[str, Any]:
         "channel_ids": [str(channel_id) for channel_id in config.get("channel_ids", [])],
         "webhook_url": config.get("webhook_url", ""),
         "webhook_enabled": bool(config.get("webhook_enabled", False)),
+        "keywords": [str(keyword) for keyword in config.get("keywords", []) if str(keyword).strip()],
     }
 
 
@@ -373,12 +376,15 @@ def create_app_server(
             channel_ids = [int(channel_id) for channel_id in channel_ids_raw if str(channel_id).strip()]
             webhook_url = str(data.get("webhook_url", "")).strip()
             webhook_enabled = bool(data.get("webhook_enabled", False))
+            keywords_raw = data.get("keywords", [])
+            keywords = [str(keyword).strip() for keyword in keywords_raw if str(keyword).strip()]
             config = {
                 "token": token,
                 "guild_ids": guild_ids,
                 "channel_ids": channel_ids,
                 "webhook_url": webhook_url,
                 "webhook_enabled": webhook_enabled,
+                "keywords": keywords,
             }
             save_config(config_path, config)
 
@@ -438,6 +444,7 @@ def main():
             "channel_ids": args.channel_ids or initial_config.get("channel_ids", []),
             "webhook_url": args.webhook_url if args.webhook_url is not None else initial_config.get("webhook_url", ""),
             "webhook_enabled": bool(initial_config.get("webhook_enabled", False)),
+            "keywords": list(initial_config.get("keywords", [])),
         }
         save_config(config_path, initial_config)
 

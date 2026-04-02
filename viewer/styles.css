@@ -308,6 +308,27 @@ body {
   font-size: 0.76rem;
 }
 
+.radio-group {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--search-bg);
+  padding: 10px 12px;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.radio-group .field-label {
+  margin: 0;
+  padding: 0 4px;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .settings-panel {
   margin: 18px 28px 0;
   background: var(--modal-bg, rgba(43, 45, 49, 0.98));
@@ -804,6 +825,24 @@ body.light-mode .message-row.mention-highlight {
 }
 
 body.light-mode .message-row.mention-highlight:hover {
+  background: rgba(250, 166, 26, 0.2);
+}
+
+.message-row.keyword-highlight {
+  background: rgba(250, 166, 26, 0.12);
+  border-left: 3px solid rgba(250, 166, 26, 0.9);
+}
+
+.message-row.keyword-highlight:hover {
+  background: rgba(250, 166, 26, 0.18);
+}
+
+body.light-mode .message-row.keyword-highlight {
+  background: rgba(250, 166, 26, 0.14);
+  border-left-color: rgba(194, 120, 3, 0.9);
+}
+
+body.light-mode .message-row.keyword-highlight:hover {
   background: rgba(250, 166, 26, 0.2);
 }
 

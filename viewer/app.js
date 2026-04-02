@@ -30,6 +30,7 @@ const state = {
   unreadTrackingReady: false,
   webhookEnabled: false,
   channelFilterOpen: false,
+  keywords: [],
 };
 
 const serverListEl = document.getElementById("server-list");
@@ -60,15 +61,16 @@ const settingsModalEl = document.getElementById("settings-modal");
 const channelFilterModalEl = document.getElementById("channel-filter-modal");
 const tokenInputEl = document.getElementById("token-input");
 const guildSelectorEl = document.getElementById("guild-selector");
-const channelSelectorEl = document.getElementById("channel-selector");
 const webhookInputEl = document.getElementById("webhook-input");
+const keywordsInputEl = document.getElementById("keywords-input");
 const openChannelFilterEl = document.getElementById("open-channel-filter");
 const addGuildMonitorEl = document.getElementById("add-guild-monitor");
 const closeChannelFilterEl = document.getElementById("close-channel-filter");
 const applyChannelFilterEl = document.getElementById("apply-channel-filter");
 const channelFilterTitleEl = document.getElementById("channel-filter-title");
 const channelFilterListEl = document.getElementById("channel-filter-list");
-const channelWebhookToggleEl = document.getElementById("channel-webhook-toggle");
+const channelWebhookOnEl = document.getElementById("channel-webhook-on");
+const channelWebhookOffEl = document.getElementById("channel-webhook-off");
 const saveConfigEl = document.getElementById("save-config");
 const stopMonitorEl = document.getElementById("stop-monitor");
 const configHelpEl = document.getElementById("config-help");
@@ -171,23 +173,31 @@ function getSelectedGuildIds() {
     .filter(Boolean);
 }
 
-function getSelectedChannelIds() {
-  const checkboxes = Array.from(channelSelectorEl.querySelectorAll("input[type='checkbox']"));
-  if (checkboxes.length === 0) {
-    return getEffectiveChannelSelection().map(String);
-  }
-  return checkboxes
-    .filter((input) => input.checked)
-    .map((input) => input.value)
-    .filter(Boolean);
-}
-
 function getSelectedGuildIdsForSave() {
   const selected = getSelectedGuildIds();
   if (selected.length > 0) {
     return selected;
   }
   return getEffectiveGuildSelection().map(String);
+}
+
+function getChannelIdsForSave() {
+  return getEffectiveChannelSelection().map(String);
+}
+
+function parseKeywords(rawInput) {
+  return (rawInput || "")
+    .split(/[\n,]+/)
+    .map((keyword) => keyword.trim())
+    .filter(Boolean);
+}
+
+function hasKeywordMatch(content, keywords) {
+  if (!content || !keywords?.length) {
+    return false;
+  }
+  const normalized = String(content).toLowerCase();
+  return keywords.some((keyword) => normalized.includes(String(keyword).toLowerCase()));
 }
 
 function getEffectiveGuildSelection() {
@@ -422,95 +432,9 @@ function renderGuildSelector(guilds) {
         state.draftGuildIds,
       );
       state.channelSelectionDirty = true;
-      renderChannelSelector(state.monitorGuilds);
       refreshConfigVisibility();
     });
     guildSelectorEl.appendChild(option);
-  }
-}
-
-function renderChannelSelector(monitorGuilds) {
-  channelSelectorEl.innerHTML = "";
-  const selectedGuildIds = getEffectiveGuildSelection();
-  const selectedGuildSet = new Set(selectedGuildIds.map(String));
-  const selectedChannelIds = new Set(getEffectiveChannelSelection().map(String));
-
-  if (!tokenInputEl.value.trim()) {
-    channelSelectorEl.innerHTML = '<p class="sidebar-meta">Save a bot token first to load channels.</p>';
-    return;
-  }
-
-  if (!selectedGuildIds.length) {
-    channelSelectorEl.innerHTML = '<p class="sidebar-meta">Select at least one server before choosing channels.</p>';
-    return;
-  }
-
-  const groups = [];
-  const byId = new Map();
-  for (const guild of monitorGuilds || []) {
-    if (!selectedGuildSet.has(String(guild.id))) {
-      continue;
-    }
-    for (const channel of guild.channels || []) {
-      const normalized = {
-        id: String(channel.id),
-        name: channel.name || "unknown-channel",
-        guild_name: guild.name || "Unknown Server",
-        category: channel.category || "No Category",
-      };
-      groups.push(normalized);
-      byId.set(normalized.id, normalized);
-    }
-  }
-
-  if (!groups.length) {
-    channelSelectorEl.innerHTML = '<p class="sidebar-meta">No channel list available yet. Save and start to discover channels.</p>';
-    return;
-  }
-
-  for (const channelId of selectedChannelIds) {
-    if (!byId.has(channelId)) {
-      byId.set(channelId, {
-        id: channelId,
-        name: `Configured Channel (${channelId})`,
-        guild_name: "Unavailable",
-        category: "Unavailable",
-      });
-    }
-  }
-
-  const options = Array.from(byId.values()).sort((a, b) => {
-    const guildCmp = a.guild_name.localeCompare(b.guild_name);
-    if (guildCmp !== 0) {
-      return guildCmp;
-    }
-    const categoryCmp = a.category.localeCompare(b.category);
-    if (categoryCmp !== 0) {
-      return categoryCmp;
-    }
-    return a.name.localeCompare(b.name);
-  });
-
-  for (const channel of options) {
-    const option = document.createElement("label");
-    option.className = "guild-option";
-    option.innerHTML = `
-      <input type="checkbox" value="${channel.id}">
-      <span class="guild-option-label">
-        <span class="guild-option-name"></span>
-        <span class="guild-option-meta"></span>
-      </span>
-    `;
-    option.querySelector(".guild-option-name").textContent = `#${channel.name}`;
-    option.querySelector(".guild-option-meta").textContent = `${channel.guild_name} / ${channel.category} (${channel.id})`;
-    const input = option.querySelector("input");
-    input.checked = selectedChannelIds.has(String(channel.id));
-    input.addEventListener("change", () => {
-      state.draftChannelIds = getSelectedChannelIds();
-      state.channelSelectionDirty = true;
-      refreshConfigVisibility();
-    });
-    channelSelectorEl.appendChild(option);
   }
 }
 
@@ -518,7 +442,8 @@ function renderChannelFilterModal() {
   channelFilterListEl.innerHTML = "";
   const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
   const guild = state.monitorGuilds.find((item) => String(item.id) === selectedGuildId);
-  channelWebhookToggleEl.checked = Boolean(state.webhookEnabled);
+  channelWebhookOnEl.checked = Boolean(state.webhookEnabled);
+  channelWebhookOffEl.checked = !state.webhookEnabled;
 
   if (!selectedGuildId || !guild) {
     channelFilterTitleEl.textContent = "Select A Server First";
@@ -777,7 +702,8 @@ function renderMessages(messages, channels) {
 
   for (const message of messages) {
     const row = document.createElement("article");
-    row.className = `message-row${message.mentions_me ? " mention-highlight" : ""}`;
+    const matchKeyword = hasKeywordMatch(message.content, state.keywords);
+    row.className = `message-row${message.mentions_me ? " mention-highlight" : ""}${matchKeyword ? " keyword-highlight" : ""}`;
     row.innerHTML = `
       <div class="avatar">${initialsFromName(message.author)}</div>
       <div>
@@ -1022,7 +948,6 @@ async function fetchState(options = {}) {
 
   updateMonitorUI(payload.monitor);
   renderGuildSelector(monitorGuilds);
-  renderChannelSelector(monitorGuilds);
   renderServers(guilds);
   renderChannels(payload.channels);
 
@@ -1115,22 +1040,25 @@ async function fetchConfig() {
   state.channelSelectionDirty = false;
   state.webhookUrl = payload.config.webhook_url || "";
   state.webhookEnabled = Boolean(payload.config.webhook_enabled);
+  state.keywords = (payload.config.keywords || []).map((keyword) => String(keyword).trim()).filter(Boolean);
   webhookInputEl.value = state.webhookUrl;
-  channelWebhookToggleEl.checked = state.webhookEnabled;
+  keywordsInputEl.value = state.keywords.join(", ");
+  channelWebhookOnEl.checked = state.webhookEnabled;
+  channelWebhookOffEl.checked = !state.webhookEnabled;
   state.configExpanded = !(payload.config.token && (payload.config.guild_ids || []).length > 0);
   applySettingsState(shouldAutoOpenSettings(payload.config, payload.monitor));
   updateMonitorUI(payload.monitor);
   const monitorGuilds = getMonitorGuilds(payload.monitor);
   state.monitorGuilds = monitorGuilds;
   renderGuildSelector(monitorGuilds);
-  renderChannelSelector(monitorGuilds);
 }
 
 async function saveConfigAndStart() {
   const guildIds = getSelectedGuildIdsForSave();
-  const channelIds = getSelectedChannelIds();
+  const channelIds = getChannelIdsForSave();
   const webhookUrl = webhookInputEl.value.trim();
   const webhookEnabled = Boolean(state.webhookEnabled);
+  const keywords = parseKeywords(keywordsInputEl.value);
 
   const response = await fetch("/api/config", {
     method: "POST",
@@ -1141,6 +1069,7 @@ async function saveConfigAndStart() {
       channel_ids: channelIds,
       webhook_url: webhookUrl,
       webhook_enabled: webhookEnabled,
+      keywords,
       start_monitor: true,
     }),
   });
@@ -1158,6 +1087,7 @@ async function saveConfigAndStart() {
   state.channelSelectionDirty = false;
   state.webhookUrl = webhookUrl;
   state.webhookEnabled = webhookEnabled;
+  state.keywords = keywords;
   state.configExpanded = false;
   applySettingsState(false);
   updateMonitorUI(payload.monitor);
@@ -1206,10 +1136,9 @@ async function saveChannelFilterFromModal() {
   state.draftChannelIds = Array.from(nextSelected);
   state.configuredChannelIds = [...state.draftChannelIds];
   state.channelSelectionDirty = false;
-  state.webhookEnabled = channelWebhookToggleEl.checked;
+  state.webhookEnabled = channelWebhookOnEl.checked;
 
   await saveConfigAndStart();
-  renderChannelSelector(state.monitorGuilds);
   applyChannelFilterState(false);
 }
 
@@ -1270,7 +1199,6 @@ toggleConfigEl.addEventListener("click", () => {
 
 tokenInputEl.addEventListener("input", () => {
   renderGuildSelector(state.monitorGuilds);
-  renderChannelSelector(state.monitorGuilds);
   refreshConfigVisibility();
 });
 
@@ -1316,7 +1244,7 @@ closeHelpEl.addEventListener("click", () => {
 
 openChannelFilterEl.addEventListener("click", () => {
   renderChannelFilterModal();
-  applyChannelFilterState(!state.channelFilterOpen);
+  applyChannelFilterState(true);
 });
 
 addGuildMonitorEl.addEventListener("click", () => {
