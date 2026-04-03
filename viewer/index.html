@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -22,15 +22,15 @@
           <p class="eyebrow">Channel Browser</p>
           <div class="channel-header-actions-menu">
             <button id="toggle-channel-actions" class="icon-button compact-button menu-trigger" type="button" aria-label="Open channel actions">
-              <span class="button-icon" aria-hidden="true">⋯</span>
+              <span class="button-icon" aria-hidden="true">â‹¯</span>
             </button>
             <div id="channel-actions-menu" class="channel-actions-menu hidden" role="menu" aria-label="Channel browser actions">
               <button id="add-guild-monitor" class="menu-action hidden" type="button" role="menuitem" aria-label="Add selected guild to monitoring">
-                <span class="button-icon" aria-hidden="true">➕</span>
+                <span class="button-icon" aria-hidden="true">âž•</span>
                 <span>Add Guild To Monitoring</span>
               </button>
               <button id="open-channel-filter" class="menu-action" type="button" role="menuitem" aria-label="Configure monitored channels">
-                <span class="button-icon" aria-hidden="true">🎯</span>
+                <span class="button-icon" aria-hidden="true">ðŸŽ¯</span>
                 <span>Monitor Channels</span>
               </button>
             </div>
@@ -58,19 +58,23 @@
         </div>
         <div class="header-top-actions">
           <button id="mobile-menu-toggle" class="settings-button mobile-menu-toggle" type="button" aria-label="Open quick actions">
-            ☰
+            &#9776;
           </button>
           <div id="mobile-actions-menu" class="mobile-actions-menu">
             <button id="toggle-servers" class="theme-toggle mobile-servers-toggle" type="button" aria-label="Toggle server list">
-              <span class="button-icon" aria-hidden="true">🖧</span>
+              <span class="button-icon" aria-hidden="true">&#127760;</span>
               <span>Servers</span>
             </button>
             <button id="toggle-channels" class="theme-toggle mobile-channels-toggle" type="button" aria-label="Toggle channel list">
-              <span class="button-icon" aria-hidden="true">💬</span>
+              <span class="button-icon" aria-hidden="true">&#128172;</span>
               <span>Channels</span>
             </button>
+            <button id="toggle-all-chats-mobile" class="theme-toggle mobile-all-chats-toggle" type="button" aria-label="Toggle all chats view">
+              <span class="button-icon" aria-hidden="true">&#129525;</span>
+              <span>All Chats</span>
+            </button>
             <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">
-              <span class="button-icon" aria-hidden="true">🌗</span>
+              <span class="button-icon" aria-hidden="true">&#127767;</span>
               <span id="theme-toggle-label">Light Mode</span>
             </button>
             <button id="open-help" class="settings-button" type="button" aria-label="Open help">?</button>
@@ -78,8 +82,12 @@
           </div>
         </div>
         <div class="header-controls">
+          <button id="toggle-all-chats" class="theme-toggle all-chats-toggle" type="button" aria-label="Toggle all chats view">
+            <span class="button-icon" aria-hidden="true">&#129525;</span>
+            <span>All Chats</span>
+          </button>
           <button id="mobile-search-toggle" class="settings-button mobile-search-toggle" type="button" aria-label="Open search">
-            🔎
+            &#128270;
           </button>
           <label class="search-wrap" for="search-input">
             <span class="search-icon">/</span>
@@ -101,12 +109,12 @@
             </div>
             <div class="config-card-tools">
               <button id="toggle-config" class="icon-button hidden" type="button">
-                <span class="button-icon" aria-hidden="true">✏️</span>
+                <span class="button-icon" aria-hidden="true">âœï¸</span>
                 <span id="toggle-config-label">Edit</span>
               </button>
               <span id="monitor-badge" class="monitor-badge">Idle</span>
               <button id="close-settings" class="icon-button" type="button">
-                <span class="button-icon" aria-hidden="true">❌</span>
+                <span class="button-icon" aria-hidden="true">âŒ</span>
                 <span>Close</span>
               </button>
             </div>
@@ -146,11 +154,11 @@
 
             <div class="config-actions">
               <button id="save-config" class="primary-button" type="button">
-                <span class="button-icon" aria-hidden="true">▶️</span>
+                <span class="button-icon" aria-hidden="true">â–¶ï¸</span>
                 <span>Save and Start</span>
               </button>
               <button id="stop-monitor" class="secondary-button" type="button">
-                <span class="button-icon" aria-hidden="true">⏹️</span>
+                <span class="button-icon" aria-hidden="true">â¹ï¸</span>
                 <span>Stop</span>
               </button>
             </div>
@@ -168,7 +176,7 @@
               <h3>Using SpyCord</h3>
             </div>
             <button id="close-help" class="icon-button" type="button">
-              <span class="button-icon" aria-hidden="true">❌</span>
+              <span class="button-icon" aria-hidden="true">âŒ</span>
               <span>Close</span>
             </button>
           </div>
@@ -210,26 +218,24 @@
               <h3 id="channel-filter-title">Select Channels</h3>
             </div>
             <button id="close-channel-filter" class="icon-button" type="button">
-              <span class="button-icon" aria-hidden="true">❌</span>
+              <span class="button-icon" aria-hidden="true">&#10060;</span>
               <span>Close</span>
             </button>
           </div>
-          <fieldset class="radio-group">
-            <legend class="field-label">Webhook Alerts For Monitored Channels</legend>
-            <label class="radio-option">
-              <input id="channel-webhook-on" type="radio" name="channel-webhook-mode" value="on">
-              <span>Enabled</span>
+          <section class="webhook-switch-card">
+            <div class="webhook-switch-text">
+              <p class="field-label">Webhook Alerts For Monitored Channels</p>
+              <p class="sidebar-meta">Requires a webhook URL in Settings.</p>
+            </div>
+            <label class="ios-switch" for="channel-webhook-toggle" aria-label="Toggle webhook alerts">
+              <input id="channel-webhook-toggle" type="checkbox">
+              <span class="ios-slider" aria-hidden="true"></span>
             </label>
-            <label class="radio-option">
-              <input id="channel-webhook-off" type="radio" name="channel-webhook-mode" value="off">
-              <span>Disabled</span>
-            </label>
-            <p class="sidebar-meta">Requires a webhook URL in Settings.</p>
-          </fieldset>
+          </section>
           <div id="channel-filter-list" class="guild-selector"></div>
           <div class="config-actions">
             <button id="apply-channel-filter" class="primary-button" type="button">
-              <span class="button-icon" aria-hidden="true">✅</span>
+              <span class="button-icon" aria-hidden="true">&#9989;</span>
               <span>Apply</span>
             </button>
           </div>
@@ -250,3 +256,5 @@
   <script src="/app.js"></script>
 </body>
 </html>
+
+

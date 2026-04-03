@@ -34,6 +34,8 @@ const state = {
   mobileHeaderMenuOpen: false,
   mobileSearchOpen: false,
   keywords: [],
+  showAllChats: false,
+  lastSelectedChannelByGuild: {},
 };
 
 const serverListEl = document.getElementById("server-list");
@@ -53,6 +55,8 @@ const mobileSearchToggleEl = document.getElementById("mobile-search-toggle");
 const themeToggleEl = document.getElementById("theme-toggle");
 const toggleServersEl = document.getElementById("toggle-servers");
 const toggleChannelsEl = document.getElementById("toggle-channels");
+const toggleAllChatsEl = document.getElementById("toggle-all-chats");
+const toggleAllChatsMobileEl = document.getElementById("toggle-all-chats-mobile");
 const mobileMenuToggleEl = document.getElementById("mobile-menu-toggle");
 const mobileActionsMenuEl = document.getElementById("mobile-actions-menu");
 const toggleSidebarEl = document.getElementById("toggle-sidebar");
@@ -78,8 +82,7 @@ const closeChannelFilterEl = document.getElementById("close-channel-filter");
 const applyChannelFilterEl = document.getElementById("apply-channel-filter");
 const channelFilterTitleEl = document.getElementById("channel-filter-title");
 const channelFilterListEl = document.getElementById("channel-filter-list");
-const channelWebhookOnEl = document.getElementById("channel-webhook-on");
-const channelWebhookOffEl = document.getElementById("channel-webhook-off");
+const channelWebhookToggleEl = document.getElementById("channel-webhook-toggle");
 const saveConfigEl = document.getElementById("save-config");
 const stopMonitorEl = document.getElementById("stop-monitor");
 const configHelpEl = document.getElementById("config-help");
@@ -175,6 +178,35 @@ function applyMobileSearchState(open) {
   if (shouldOpen) {
     setTimeout(() => searchInputEl?.focus(), 130);
   }
+}
+
+function syncAllChatsButtons() {
+  for (const button of [toggleAllChatsEl, toggleAllChatsMobileEl]) {
+    if (!button) {
+      continue;
+    }
+    button.classList.toggle("is-active", state.showAllChats);
+    button.setAttribute("aria-pressed", state.showAllChats ? "true" : "false");
+  }
+}
+
+function applyAllChatsState(enabled) {
+  const shouldEnable = Boolean(enabled);
+  if (shouldEnable && !state.showAllChats && state.selectedGuild && state.selectedChannel) {
+    state.lastSelectedChannelByGuild[state.selectedGuild] = state.selectedChannel;
+  }
+
+  state.showAllChats = shouldEnable;
+  if (shouldEnable) {
+    state.selectedChannel = null;
+  } else if (state.selectedGuild) {
+    const fallbackChannel = state.lastSelectedChannelByGuild[state.selectedGuild];
+    if (fallbackChannel) {
+      state.selectedChannel = fallbackChannel;
+    }
+  }
+
+  syncAllChatsButtons();
 }
 
 function applySettingsState(open) {
@@ -500,11 +532,8 @@ function renderChannelFilterModal() {
   channelFilterListEl.innerHTML = "";
   const selectedGuildId = state.selectedGuild ? String(state.selectedGuild) : null;
   const guild = state.monitorGuilds.find((item) => String(item.id) === selectedGuildId);
-  if (channelWebhookOnEl) {
-    channelWebhookOnEl.checked = Boolean(state.webhookEnabled);
-  }
-  if (channelWebhookOffEl) {
-    channelWebhookOffEl.checked = !state.webhookEnabled;
+  if (channelWebhookToggleEl) {
+    channelWebhookToggleEl.checked = Boolean(state.webhookEnabled);
   }
 
   if (!selectedGuildId || !guild) {
@@ -520,7 +549,7 @@ function renderChannelFilterModal() {
 
   for (const channel of guild.channels || []) {
     const option = document.createElement("label");
-    option.className = "guild-option";
+    option.className = "guild-option channel-option";
     option.innerHTML = `
       <input type="checkbox" value="${channel.id}">
       <span class="guild-option-label">
@@ -719,7 +748,7 @@ function renderChannels(channels) {
     for (const channel of items) {
       const button = document.createElement("button");
       button.className = "channel-button";
-      if (channel.id === state.selectedChannel) {
+      if (!state.showAllChats && channel.id === state.selectedChannel) {
         button.classList.add("active");
       }
 
@@ -728,7 +757,11 @@ function renderChannels(channels) {
         <span class="channel-count">${channel.count}</span>
       `;
       button.addEventListener("click", () => {
+        applyAllChatsState(false);
         state.selectedChannel = channel.id;
+        if (state.selectedGuild) {
+          state.lastSelectedChannelByGuild[state.selectedGuild] = channel.id;
+        }
         if (isMobileViewport()) {
           applyMobileChannelsState(false);
         }
@@ -745,9 +778,13 @@ function renderMessages(messages, channels) {
   const selected = channels.find((channel) => channel.id === state.selectedChannel);
   const selectedGuild = state.guilds.find((guild) => guild.id === state.selectedGuild);
   sidebarGuildTitleEl.textContent = selectedGuild ? selectedGuild.name : "Guild Logs";
-  channelTitleEl.textContent = selected
-    ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
-    : "No channel selected";
+  if (state.showAllChats && selectedGuild) {
+    channelTitleEl.textContent = `${selectedGuild.name} / All Chats`;
+  } else {
+    channelTitleEl.textContent = selected
+      ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
+      : "No channel selected";
+  }
   messageCountEl.textContent = `${messages.length} result${messages.length === 1 ? "" : "s"}`;
 
   const shouldStickToBottom =
@@ -914,7 +951,7 @@ function buildStateRequestParams(options = {}) {
   if (state.selectedGuild) {
     params.set("guild", state.selectedGuild);
   }
-  if (state.selectedChannel) {
+  if (state.selectedChannel && !state.showAllChats) {
     params.set("channel", state.selectedChannel);
   }
   if (state.searchQuery) {
@@ -932,6 +969,7 @@ function currentQueryKey() {
     state.selectedGuild || "",
     state.selectedChannel || "",
     state.searchQuery || "",
+    state.showAllChats ? "all" : "single",
   ].join("|");
 }
 
@@ -1105,11 +1143,8 @@ async function fetchConfig() {
   state.keywords = (payload.config.keywords || []).map((keyword) => String(keyword).trim()).filter(Boolean);
   webhookInputEl.value = state.webhookUrl;
   keywordsInputEl.value = state.keywords.join(", ");
-  if (channelWebhookOnEl) {
-    channelWebhookOnEl.checked = state.webhookEnabled;
-  }
-  if (channelWebhookOffEl) {
-    channelWebhookOffEl.checked = !state.webhookEnabled;
+  if (channelWebhookToggleEl) {
+    channelWebhookToggleEl.checked = state.webhookEnabled;
   }
   state.configExpanded = !(payload.config.token && (payload.config.guild_ids || []).length > 0);
   applySettingsState(shouldAutoOpenSettings(payload.config, payload.monitor));
@@ -1202,8 +1237,8 @@ async function saveChannelFilterFromModal() {
   state.draftChannelIds = Array.from(nextSelected);
   state.configuredChannelIds = [...state.draftChannelIds];
   state.channelSelectionDirty = false;
-  if (channelWebhookOnEl && channelWebhookOffEl) {
-    state.webhookEnabled = channelWebhookOnEl.checked;
+  if (channelWebhookToggleEl) {
+    state.webhookEnabled = Boolean(channelWebhookToggleEl.checked);
   }
 
   await saveConfigAndStart();
@@ -1303,6 +1338,24 @@ toggleChannelsEl.addEventListener("click", () => {
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
 });
+
+function handleAllChatsToggle() {
+  applyAllChatsState(!state.showAllChats);
+  applyMobileHeaderMenuState(false);
+  applyMobileSearchState(false);
+  fetchState().catch((error) => {
+    statusTextEl.textContent = "Connection issue";
+    refreshTextEl.textContent = error.message;
+  });
+}
+
+if (toggleAllChatsEl) {
+  toggleAllChatsEl.addEventListener("click", handleAllChatsToggle);
+}
+
+if (toggleAllChatsMobileEl) {
+  toggleAllChatsMobileEl.addEventListener("click", handleAllChatsToggle);
+}
 
 openSettingsEl.addEventListener("click", () => {
   applySettingsState(!state.settingsOpen);
@@ -1478,6 +1531,7 @@ window.addEventListener("resize", () => {
 
 applyTheme(localStorage.getItem("viewer-theme") || "dark");
 applyFormatData(localStorage.getItem("viewer-format-data") !== "0");
+syncAllChatsButtons();
 applySidebarState(localStorage.getItem("viewer-sidebar-collapsed") === "1");
 applyHelpState(false);
 applySettingsState(false);
