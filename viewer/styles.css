@@ -960,10 +960,6 @@ body.light-mode .modal-backdrop {
   display: none;
 }
 
-.mobile-highlight-filter-toggle {
-  display: none;
-}
-
 .theme-toggle.is-active {
   background: var(--accent-soft);
   border-color: rgba(88, 166, 255, 0.35);
@@ -1370,13 +1366,6 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     flex: 0 0 auto;
   }
 
-  .mobile-highlight-filter-toggle {
-    display: inline-flex;
-    min-width: 0;
-    padding: 9px 10px;
-    flex: 0 0 auto;
-  }
-
   .header-controls {
     width: 100%;
     flex-direction: row;
@@ -1432,7 +1421,10 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .highlight-filter-toggle {
-    display: none;
+    display: inline-flex;
+    min-width: 0;
+    padding: 9px 10px;
+    flex: 0 0 auto;
   }
 
   .settings-button {
@@ -1595,7 +1587,6 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
 
   .mobile-servers-toggle,
   .mobile-channels-toggle,
-  .mobile-highlight-filter-toggle,
   .theme-toggle {
     padding: 8px 9px;
     font-size: 0.82rem;

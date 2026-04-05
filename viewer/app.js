@@ -34,6 +34,7 @@ const state = {
   mobileHeaderMenuOpen: false,
   mobileSearchOpen: false,
   highlightOnly: false,
+  latestChannels: [],
   keywords: [],
 };
 
@@ -55,7 +56,6 @@ const themeToggleEl = document.getElementById("theme-toggle");
 const toggleServersEl = document.getElementById("toggle-servers");
 const toggleChannelsEl = document.getElementById("toggle-channels");
 const toggleHighlightFilterEl = document.getElementById("toggle-highlight-filter");
-const toggleHighlightFilterMobileEl = document.getElementById("toggle-highlight-filter-mobile");
 const mobileMenuToggleEl = document.getElementById("mobile-menu-toggle");
 const mobileActionsMenuEl = document.getElementById("mobile-actions-menu");
 const toggleSidebarEl = document.getElementById("toggle-sidebar");
@@ -180,7 +180,7 @@ function applyMobileSearchState(open) {
 }
 
 function syncHighlightFilterButtons() {
-  for (const button of [toggleHighlightFilterEl, toggleHighlightFilterMobileEl]) {
+  for (const button of [toggleHighlightFilterEl]) {
     if (!button) {
       continue;
     }
@@ -1033,6 +1033,7 @@ async function fetchState(options = {}) {
   renderGuildSelector(monitorGuilds);
   renderServers(guilds);
   renderChannels(payload.channels);
+  state.latestChannels = payload.channels;
 
   if (appendMode) {
     applyMessagePage(payload, { appendMode: true });
@@ -1326,18 +1327,11 @@ function handleHighlightFilterToggle() {
   applyHighlightFilterState(!state.highlightOnly);
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
-  fetchState().catch((error) => {
-    statusTextEl.textContent = "Connection issue";
-    refreshTextEl.textContent = error.message;
-  });
+  renderMessages(state.loadedMessages, state.latestChannels || []);
 }
 
 if (toggleHighlightFilterEl) {
   toggleHighlightFilterEl.addEventListener("click", handleHighlightFilterToggle);
-}
-
-if (toggleHighlightFilterMobileEl) {
-  toggleHighlightFilterMobileEl.addEventListener("click", handleHighlightFilterToggle);
 }
 
 openSettingsEl.addEventListener("click", () => {
