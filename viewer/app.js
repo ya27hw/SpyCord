@@ -40,6 +40,7 @@ const state = {
 };
 
 const serverListEl = document.getElementById("server-list");
+const serverRailEl = document.querySelector(".server-rail");
 const channelGroupsEl = document.getElementById("channel-groups");
 const messageListEl = document.getElementById("message-list");
 const channelTitleEl = document.getElementById("channel-title");
@@ -1571,6 +1572,17 @@ document.addEventListener("click", (event) => {
     return;
   }
   applyMobileSearchState(false);
+});
+
+document.addEventListener("click", (event) => {
+  if (!isMobileViewport() || !appShellEl.classList.contains("mobile-servers-open") || !serverRailEl) {
+    return;
+  }
+  const target = event.target;
+  if (serverRailEl.contains(target) || toggleServersEl?.contains(target)) {
+    return;
+  }
+  applyMobileServersState(false);
 });
 
 document.addEventListener("keydown", (event) => {

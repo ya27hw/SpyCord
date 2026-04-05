@@ -355,6 +355,21 @@ body {
   z-index: 12;
   display: grid;
   gap: 4px;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transform-origin: top right;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    visibility 180ms ease;
+}
+
+.channel-actions-menu.hidden {
+  display: grid;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .menu-action {
@@ -458,6 +473,10 @@ body {
   box-shadow: var(--shadow);
 }
 
+.modal-backdrop .settings-panel {
+  margin: 0;
+}
+
 .modal-backdrop {
   position: absolute;
   inset: 0;
@@ -467,6 +486,8 @@ body {
   padding: 28px;
   background: rgba(8, 9, 11, 0.58);
   backdrop-filter: blur(10px);
+  opacity: 1;
+  transition: opacity 180ms ease;
 }
 
 body.light-mode .modal-backdrop {
@@ -1319,17 +1340,22 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .chat-header {
-    padding: 16px 18px;
-    column-gap: 12px;
-    row-gap: 10px;
+    padding: 12px 16px;
+    column-gap: 10px;
+    row-gap: 6px;
   }
 
   .channel-sidebar {
     padding: 18px 14px;
   }
 
+  .sidebar-header-top {
+    padding-right: 42px;
+  }
+
   .sidebar-edge-toggle {
-    left: calc(68px + 228px - 14px);
+    top: 18px;
+    left: calc(68px + 228px - 8px);
   }
 
   .app-shell.sidebar-collapsed .sidebar-edge-toggle {
@@ -1337,12 +1363,17 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .sidebar-header h1 {
-    font-size: 2.15rem;
+    font-size: 1.5rem;
+    line-height: 1.08;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .chat-header h2 {
-    font-size: 1.8rem;
-    line-height: 1.12;
+    font-size: 1.2rem;
+    line-height: 1.15;
+    max-width: min(100%, 18ch);
   }
 
   .eyebrow {
@@ -1356,12 +1387,12 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   .sidebar-meta,
   .channel-category,
   .channel-count {
-    font-size: 0.8rem;
+    font-size: 0.74rem;
   }
 
   .header-top-actions,
   .header-controls {
-    gap: 8px;
+    gap: 6px;
   }
 
   .settings-button {
@@ -1389,12 +1420,12 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .search-wrap input {
-    padding: 10px 0;
-    font-size: 0.95rem;
+    padding: 8px 0;
+    font-size: 0.9rem;
   }
 
   .message-list {
-    padding: 14px 16px 22px;
+    padding: 10px 14px 20px;
   }
 
   .message-row {
@@ -1408,6 +1439,27 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
 
   .message-content {
     font-size: 0.95rem;
+  }
+
+  .header-main .eyebrow {
+    margin-bottom: 2px;
+  }
+
+  .header-subtle {
+    margin-top: 2px;
+  }
+
+  .modal-backdrop {
+    padding: 16px;
+  }
+
+  .modal-panel {
+    width: min(680px, calc(100% - 16px));
+    max-height: calc(100vh - 32px);
+  }
+
+  .channel-filter-panel {
+    width: min(560px, calc(100% - 16px));
   }
 }
 
@@ -1424,8 +1476,13 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     padding: 16px 12px;
   }
 
+  .sidebar-header-top {
+    padding-right: 38px;
+  }
+
   .sidebar-edge-toggle {
-    left: calc(66px + 205px - 14px);
+    top: 18px;
+    left: calc(66px + 205px - 8px);
   }
 
   .app-shell.sidebar-collapsed .sidebar-edge-toggle {
@@ -1488,7 +1545,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .server-rail {
-    display: none;
+    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
@@ -1505,10 +1562,21 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     bottom: 0;
     z-index: 24;
     box-shadow: var(--shadow);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-18px);
+    transition:
+      opacity 200ms ease,
+      transform 220ms ease,
+      visibility 200ms ease;
   }
 
   .app-shell.mobile-servers-open .server-rail {
-    display: flex;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
   }
 
   .server-rail-header {
@@ -1558,7 +1626,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .channel-sidebar {
-    display: none;
+    display: flex;
     border-right: 0;
     border-bottom: 1px solid var(--border);
     padding: 14px 12px 12px;
@@ -1570,10 +1638,21 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     right: 0;
     z-index: 13;
     box-shadow: var(--shadow);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-14px);
+    transition:
+      opacity 200ms ease,
+      transform 220ms ease,
+      visibility 200ms ease;
   }
 
   .app-shell.mobile-channels-open .channel-sidebar {
-    display: flex;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
   }
 
   .sidebar-edge-toggle {
@@ -1611,7 +1690,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .mobile-actions-menu {
-    display: none;
+    display: flex;
     position: absolute;
     top: calc(100% + 8px);
     left: 0;
@@ -1626,10 +1705,22 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     gap: 6px;
     flex-direction: column;
     align-items: stretch;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-10px) scale(0.98);
+    transform-origin: top left;
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease,
+      visibility 180ms ease;
   }
 
   .app-shell.mobile-header-menu-open .mobile-actions-menu {
-    display: flex;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
   }
 
   .mobile-actions-menu .theme-toggle,
