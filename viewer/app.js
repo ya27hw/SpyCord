@@ -796,8 +796,8 @@ function renderMessages(messages, channels) {
   const selected = channels.find((channel) => channel.id === state.selectedChannel);
   const selectedGuild = state.guilds.find((guild) => guild.id === state.selectedGuild);
   sidebarGuildTitleEl.textContent = selectedGuild ? selectedGuild.name : "Guild Logs";
-  if (state.highlightOnly && selectedGuild) {
-    channelTitleEl.textContent = `${selectedGuild.name} / Highlights`;
+  if (state.highlightOnly && selected) {
+    channelTitleEl.textContent = `${selected.guild_name} / ${selected.category} / #${selected.name} / Highlights`;
   } else {
     channelTitleEl.textContent = selected
       ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
@@ -976,8 +976,12 @@ function buildStateRequestParams(options = {}) {
   if (state.selectedGuild) {
     params.set("guild", state.selectedGuild);
   }
-  if (state.highlightOnly && state.selectedGuild) {
-    params.set("scope", "guild");
+  if (state.highlightOnly && state.selectedChannel) {
+    params.set("channel", state.selectedChannel);
+    params.set("highlight_only", "1");
+    for (const keyword of state.keywords) {
+      params.append("keyword", keyword);
+    }
   } else if (state.selectedChannel) {
     params.set("channel", state.selectedChannel);
   }
@@ -994,7 +998,7 @@ function buildStateRequestParams(options = {}) {
 function currentQueryKey() {
   return [
     state.selectedGuild || "",
-    state.highlightOnly ? "__guild_highlights__" : (state.selectedChannel || ""),
+    state.highlightOnly ? `__channel_highlights__:${state.selectedChannel || ""}` : (state.selectedChannel || ""),
     state.searchQuery || "",
   ].join("|");
 }

@@ -147,6 +147,17 @@ def message_matches_search(message: MessageEntry, search_query: str) -> bool:
     return any(needle in haystack.casefold() for haystack in haystacks)
 
 
+def message_matches_highlights(message: MessageEntry, keywords: list[str]) -> bool:
+    if message.mentions_me:
+        return True
+
+    if not keywords:
+        return False
+
+    content = message.content.casefold()
+    return any(keyword in content for keyword in keywords)
+
+
 def build_state(
     log_path: Path,
     selected_guild: str | None,
@@ -155,10 +166,13 @@ def build_state(
     search_query: str,
     before_line: int | None = None,
     scope: str = "channel",
+    highlight_only: bool = False,
+    keywords: list[str] | None = None,
 ) -> dict[str, Any]:
     messages, channels, guilds, default_guild, default_channel = parse_log_file(log_path)
     active_guild = selected_guild or default_guild
     scope_mode = scope if scope in {"channel", "guild"} else "channel"
+    normalized_keywords = [keyword.casefold() for keyword in (keywords or []) if keyword]
 
     if active_guild:
         guild_channels = [channel for channel in channels if channel["guild_id"] == active_guild]
@@ -179,6 +193,10 @@ def build_state(
     else:
         filtered = messages
 
+    if highlight_only:
+        filtered = [
+            message for message in filtered if message_matches_highlights(message, normalized_keywords)
+        ]
     filtered = [message for message in filtered if message_matches_search(message, search_query)]
     if before_line is not None:
         filtered = [message for message in filtered if message.line_number < before_line]
@@ -225,6 +243,8 @@ class LogViewerHandler(BaseHTTPRequestHandler):
         selected_guild = params.get("guild", [None])[0]
         selected_channel = params.get("channel", [None])[0]
         search_query = params.get("q", [""])[0]
+        highlight_only = params.get("highlight_only", ["0"])[0] == "1"
+        keywords = [value.strip() for value in params.get("keyword", []) if value.strip()]
         raw_limit = params.get("limit", [str(self.message_limit)])[0]
         try:
             requested_limit = int(raw_limit)
@@ -245,6 +265,8 @@ class LogViewerHandler(BaseHTTPRequestHandler):
             requested_limit,
             search_query,
             before_line,
+            highlight_only=highlight_only,
+            keywords=keywords,
         )
         payload = json.dumps(state).encode("utf-8")
         self.send_response(HTTPStatus.OK)
