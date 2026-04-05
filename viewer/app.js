@@ -33,9 +33,8 @@ const state = {
   channelActionsMenuOpen: false,
   mobileHeaderMenuOpen: false,
   mobileSearchOpen: false,
+  highlightOnly: false,
   keywords: [],
-  showAllChats: false,
-  lastSelectedChannelByGuild: {},
 };
 
 const serverListEl = document.getElementById("server-list");
@@ -55,8 +54,8 @@ const mobileSearchToggleEl = document.getElementById("mobile-search-toggle");
 const themeToggleEl = document.getElementById("theme-toggle");
 const toggleServersEl = document.getElementById("toggle-servers");
 const toggleChannelsEl = document.getElementById("toggle-channels");
-const toggleAllChatsEl = document.getElementById("toggle-all-chats");
-const toggleAllChatsMobileEl = document.getElementById("toggle-all-chats-mobile");
+const toggleHighlightFilterEl = document.getElementById("toggle-highlight-filter");
+const toggleHighlightFilterMobileEl = document.getElementById("toggle-highlight-filter-mobile");
 const mobileMenuToggleEl = document.getElementById("mobile-menu-toggle");
 const mobileActionsMenuEl = document.getElementById("mobile-actions-menu");
 const toggleSidebarEl = document.getElementById("toggle-sidebar");
@@ -180,33 +179,19 @@ function applyMobileSearchState(open) {
   }
 }
 
-function syncAllChatsButtons() {
-  for (const button of [toggleAllChatsEl, toggleAllChatsMobileEl]) {
+function syncHighlightFilterButtons() {
+  for (const button of [toggleHighlightFilterEl, toggleHighlightFilterMobileEl]) {
     if (!button) {
       continue;
     }
-    button.classList.toggle("is-active", state.showAllChats);
-    button.setAttribute("aria-pressed", state.showAllChats ? "true" : "false");
+    button.classList.toggle("is-active", state.highlightOnly);
+    button.setAttribute("aria-pressed", state.highlightOnly ? "true" : "false");
   }
 }
 
-function applyAllChatsState(enabled) {
-  const shouldEnable = Boolean(enabled);
-  if (shouldEnable && !state.showAllChats && state.selectedGuild && state.selectedChannel) {
-    state.lastSelectedChannelByGuild[state.selectedGuild] = state.selectedChannel;
-  }
-
-  state.showAllChats = shouldEnable;
-  if (shouldEnable) {
-    state.selectedChannel = null;
-  } else if (state.selectedGuild) {
-    const fallbackChannel = state.lastSelectedChannelByGuild[state.selectedGuild];
-    if (fallbackChannel) {
-      state.selectedChannel = fallbackChannel;
-    }
-  }
-
-  syncAllChatsButtons();
+function applyHighlightFilterState(enabled) {
+  state.highlightOnly = Boolean(enabled);
+  syncHighlightFilterButtons();
 }
 
 function applySettingsState(open) {
@@ -748,7 +733,7 @@ function renderChannels(channels) {
     for (const channel of items) {
       const button = document.createElement("button");
       button.className = "channel-button";
-      if (!state.showAllChats && channel.id === state.selectedChannel) {
+      if (channel.id === state.selectedChannel) {
         button.classList.add("active");
       }
 
@@ -757,11 +742,7 @@ function renderChannels(channels) {
         <span class="channel-count">${channel.count}</span>
       `;
       button.addEventListener("click", () => {
-        applyAllChatsState(false);
         state.selectedChannel = channel.id;
-        if (state.selectedGuild) {
-          state.lastSelectedChannelByGuild[state.selectedGuild] = channel.id;
-        }
         if (isMobileViewport()) {
           applyMobileChannelsState(false);
         }
@@ -778,28 +759,31 @@ function renderMessages(messages, channels) {
   const selected = channels.find((channel) => channel.id === state.selectedChannel);
   const selectedGuild = state.guilds.find((guild) => guild.id === state.selectedGuild);
   sidebarGuildTitleEl.textContent = selectedGuild ? selectedGuild.name : "Guild Logs";
-  if (state.showAllChats && selectedGuild) {
-    channelTitleEl.textContent = `${selectedGuild.name} / All Chats`;
-  } else {
-    channelTitleEl.textContent = selected
-      ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
-      : "No channel selected";
-  }
-  messageCountEl.textContent = `${messages.length} result${messages.length === 1 ? "" : "s"}`;
+  channelTitleEl.textContent = selected
+    ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
+    : "No channel selected";
+
+  const filteredMessages = messages.filter((message) => {
+    if (!state.highlightOnly) {
+      return true;
+    }
+    return Boolean(message.mentions_me || hasKeywordMatch(message.content, state.keywords));
+  });
+  messageCountEl.textContent = `${filteredMessages.length} result${filteredMessages.length === 1 ? "" : "s"}`;
 
   const shouldStickToBottom =
     messageListEl.scrollHeight - messageListEl.scrollTop - messageListEl.clientHeight < 80;
 
   messageListEl.innerHTML = "";
 
-  if (messages.length === 0) {
+  if (filteredMessages.length === 0) {
     emptyStateEl.classList.remove("hidden");
     return;
   }
 
   emptyStateEl.classList.add("hidden");
 
-  for (const message of messages) {
+  for (const message of filteredMessages) {
     const row = document.createElement("article");
     const matchKeyword = hasKeywordMatch(message.content, state.keywords);
     row.className = `message-row${message.mentions_me ? " mention-highlight" : ""}${matchKeyword ? " keyword-highlight" : ""}`;
@@ -951,7 +935,7 @@ function buildStateRequestParams(options = {}) {
   if (state.selectedGuild) {
     params.set("guild", state.selectedGuild);
   }
-  if (state.selectedChannel && !state.showAllChats) {
+  if (state.selectedChannel) {
     params.set("channel", state.selectedChannel);
   }
   if (state.searchQuery) {
@@ -969,7 +953,6 @@ function currentQueryKey() {
     state.selectedGuild || "",
     state.selectedChannel || "",
     state.searchQuery || "",
-    state.showAllChats ? "all" : "single",
   ].join("|");
 }
 
@@ -1339,8 +1322,8 @@ toggleChannelsEl.addEventListener("click", () => {
   applyMobileSearchState(false);
 });
 
-function handleAllChatsToggle() {
-  applyAllChatsState(!state.showAllChats);
+function handleHighlightFilterToggle() {
+  applyHighlightFilterState(!state.highlightOnly);
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
   fetchState().catch((error) => {
@@ -1349,12 +1332,12 @@ function handleAllChatsToggle() {
   });
 }
 
-if (toggleAllChatsEl) {
-  toggleAllChatsEl.addEventListener("click", handleAllChatsToggle);
+if (toggleHighlightFilterEl) {
+  toggleHighlightFilterEl.addEventListener("click", handleHighlightFilterToggle);
 }
 
-if (toggleAllChatsMobileEl) {
-  toggleAllChatsMobileEl.addEventListener("click", handleAllChatsToggle);
+if (toggleHighlightFilterMobileEl) {
+  toggleHighlightFilterMobileEl.addEventListener("click", handleHighlightFilterToggle);
 }
 
 openSettingsEl.addEventListener("click", () => {
@@ -1531,7 +1514,7 @@ window.addEventListener("resize", () => {
 
 applyTheme(localStorage.getItem("viewer-theme") || "dark");
 applyFormatData(localStorage.getItem("viewer-format-data") !== "0");
-syncAllChatsButtons();
+syncHighlightFilterButtons();
 applySidebarState(localStorage.getItem("viewer-sidebar-collapsed") === "1");
 applyHelpState(false);
 applySettingsState(false);

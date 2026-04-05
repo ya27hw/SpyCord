@@ -960,7 +960,7 @@ body.light-mode .modal-backdrop {
   display: none;
 }
 
-.mobile-all-chats-toggle {
+.mobile-highlight-filter-toggle {
   display: none;
 }
 
@@ -1197,19 +1197,21 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
 
   .server-rail {
     display: none;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
-    min-height: 76px;
-    height: 76px;
-    padding: 10px 12px;
-    gap: 12px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
+    justify-content: flex-start;
+    min-height: 100dvh;
+    height: 100dvh;
+    width: 72px;
+    padding: 10px 8px;
+    gap: 10px;
+    border-right: 1px solid var(--border);
+    border-bottom: 0;
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
-    z-index: 14;
+    bottom: 0;
+    z-index: 24;
     box-shadow: var(--shadow);
   }
 
@@ -1225,19 +1227,21 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .server-list {
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     justify-content: flex-start;
     gap: 10px;
-    height: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 0 2px;
+    width: 100%;
+    height: auto;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 2px 0;
   }
 
   .server-list::-webkit-scrollbar {
-    height: 6px;
-    width: auto;
+    width: 6px;
+    height: auto;
   }
 
   .server-button,
@@ -1248,17 +1252,17 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .server-button::before {
-    left: 50%;
-    top: auto;
-    bottom: -8px;
-    width: 22px;
-    height: 4px;
-    transform: translateX(-50%);
+    left: -10px;
+    top: 50%;
+    bottom: auto;
+    width: 5px;
+    height: 0;
+    transform: translateY(-50%);
   }
 
   .server-button.active::before,
   .server-button:hover::before {
-    height: 4px;
+    height: 20px;
   }
 
   .channel-sidebar {
@@ -1311,7 +1315,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     height: 42px;
     font-size: 1.05rem;
     line-height: 1;
-    margin-right: auto;
+    margin-right: 0;
   }
 
   .mobile-actions-menu {
@@ -1366,7 +1370,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     flex: 0 0 auto;
   }
 
-  .mobile-all-chats-toggle {
+  .mobile-highlight-filter-toggle {
     display: inline-flex;
     min-width: 0;
     padding: 9px 10px;
@@ -1427,7 +1431,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
     padding: 9px 10px;
   }
 
-  .all-chats-toggle {
+  .highlight-filter-toggle {
     display: none;
   }
 
@@ -1543,9 +1547,10 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
 
 @media (max-width: 480px) {
   .server-rail {
-    height: 70px;
-    min-height: 70px;
-    padding: 10px;
+    width: 64px;
+    height: 100dvh;
+    min-height: 100dvh;
+    padding: 8px 6px;
   }
 
   .server-rail-header,
@@ -1590,7 +1595,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
 
   .mobile-servers-toggle,
   .mobile-channels-toggle,
-  .mobile-all-chats-toggle,
+  .mobile-highlight-filter-toggle,
   .theme-toggle {
     padding: 8px 9px;
     font-size: 0.82rem;
