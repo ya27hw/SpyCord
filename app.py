@@ -331,6 +331,7 @@ def create_app_server(
             selected_guild = params.get("guild", [None])[0]
             selected_channel = params.get("channel", [None])[0]
             search_query = params.get("q", [""])[0]
+            scope = params.get("scope", ["channel"])[0]
             raw_limit = params.get("limit", [str(message_limit)])[0]
             try:
                 requested_limit = int(raw_limit)
@@ -351,6 +352,7 @@ def create_app_server(
                 requested_limit,
                 search_query,
                 before_line,
+                scope,
             )
             payload["monitor"] = manager.status()
             self.send_json(HTTPStatus.OK, payload)

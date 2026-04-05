@@ -318,6 +318,38 @@ function normalizeSelectedChannels(channelIds, monitorGuilds, selectedGuildIds) 
     .filter((channelId) => channelMap.has(String(channelId)));
 }
 
+function getGuildChannelIds(guildIds, monitorGuilds) {
+  const guildIdSet = new Set((guildIds || []).map(String));
+  const channelIds = [];
+  for (const guild of monitorGuilds || []) {
+    if (!guildIdSet.has(String(guild.id))) {
+      continue;
+    }
+    for (const channel of guild.channels || []) {
+      channelIds.push(String(channel.id));
+    }
+  }
+  return channelIds;
+}
+
+function includeAllChannelsForNewGuilds(nextGuildIds, nextChannelIds, previousGuildIds) {
+  const normalizedGuildIds = (nextGuildIds || []).map(String);
+  const normalizedChannelIds = (nextChannelIds || []).map(String);
+  const previousGuildSet = new Set((previousGuildIds || []).map(String));
+  const addedGuildIds = normalizedGuildIds.filter((guildId) => !previousGuildSet.has(guildId));
+
+  if (!addedGuildIds.length || !normalizedChannelIds.length) {
+    return normalizedChannelIds;
+  }
+
+  const nextChannelSet = new Set(normalizedChannelIds);
+  for (const channelId of getGuildChannelIds(addedGuildIds, state.monitorGuilds)) {
+    nextChannelSet.add(channelId);
+  }
+
+  return Array.from(nextChannelSet);
+}
+
 function shouldAutoOpenSettings(config, monitor) {
   const token = String(config?.token || "").trim();
   const guildIds = (config?.guild_ids || []).map((guildId) => String(guildId)).filter(Boolean);
@@ -764,9 +796,13 @@ function renderMessages(messages, channels) {
   const selected = channels.find((channel) => channel.id === state.selectedChannel);
   const selectedGuild = state.guilds.find((guild) => guild.id === state.selectedGuild);
   sidebarGuildTitleEl.textContent = selectedGuild ? selectedGuild.name : "Guild Logs";
-  channelTitleEl.textContent = selected
-    ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
-    : "No channel selected";
+  if (state.highlightOnly && selectedGuild) {
+    channelTitleEl.textContent = `${selectedGuild.name} / Highlights`;
+  } else {
+    channelTitleEl.textContent = selected
+      ? `${selected.guild_name} / ${selected.category} / #${selected.name}`
+      : "No channel selected";
+  }
 
   const filteredMessages = messages.filter((message) => {
     if (!state.highlightOnly) {
@@ -940,7 +976,9 @@ function buildStateRequestParams(options = {}) {
   if (state.selectedGuild) {
     params.set("guild", state.selectedGuild);
   }
-  if (state.selectedChannel) {
+  if (state.highlightOnly && state.selectedGuild) {
+    params.set("scope", "guild");
+  } else if (state.selectedChannel) {
     params.set("channel", state.selectedChannel);
   }
   if (state.searchQuery) {
@@ -956,7 +994,7 @@ function buildStateRequestParams(options = {}) {
 function currentQueryKey() {
   return [
     state.selectedGuild || "",
-    state.selectedChannel || "",
+    state.highlightOnly ? "__guild_highlights__" : (state.selectedChannel || ""),
     state.searchQuery || "",
   ].join("|");
 }
@@ -1145,7 +1183,12 @@ async function fetchConfig() {
 
 async function saveConfigAndStart() {
   const guildIds = getSelectedGuildIdsForSave();
-  const channelIds = getChannelIdsForSave();
+  const previousGuildIds = [...state.configuredGuildIds];
+  const channelIds = includeAllChannelsForNewGuilds(
+    guildIds,
+    getChannelIdsForSave(),
+    previousGuildIds,
+  );
   const webhookUrl = webhookInputEl.value.trim();
   const webhookEnabled = Boolean(state.webhookEnabled);
   const keywords = parseKeywords(keywordsInputEl.value);
@@ -1332,6 +1375,10 @@ function handleHighlightFilterToggle() {
   applyHighlightFilterState(!state.highlightOnly);
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
+  fetchState().catch((error) => {
+    statusTextEl.textContent = "Connection issue";
+    refreshTextEl.textContent = error.message;
+  });
 }
 
 if (toggleHighlightFilterEl) {

@@ -154,19 +154,23 @@ def build_state(
     limit: int,
     search_query: str,
     before_line: int | None = None,
+    scope: str = "channel",
 ) -> dict[str, Any]:
     messages, channels, guilds, default_guild, default_channel = parse_log_file(log_path)
     active_guild = selected_guild or default_guild
+    scope_mode = scope if scope in {"channel", "guild"} else "channel"
 
     if active_guild:
         guild_channels = [channel for channel in channels if channel["guild_id"] == active_guild]
-        if selected_channel and any(channel["id"] == selected_channel for channel in guild_channels):
+        if scope_mode == "guild":
+            active_channel = None
+        elif selected_channel and any(channel["id"] == selected_channel for channel in guild_channels):
             active_channel = selected_channel
         else:
             active_channel = guild_channels[0]["id"] if guild_channels else None
     else:
         guild_channels = channels
-        active_channel = selected_channel or default_channel
+        active_channel = None if scope_mode == "guild" else (selected_channel or default_channel)
 
     if active_channel:
         filtered = [message for message in messages if message.channel_id == active_channel]
