@@ -98,6 +98,14 @@ const mentionPattern = /(@everyone|@here|@\S+)/g;
 const singleMentionPattern = /^(@everyone|@here|@\S+)$/;
 let deferredMessageRender = null;
 
+function renderCurrentMessagesWithFilters() {
+  if (deferredMessageRender) {
+    renderMessages(deferredMessageRender.messages, deferredMessageRender.channels || []);
+    return;
+  }
+  renderMessages(state.loadedMessages || [], state.latestChannels || []);
+}
+
 function setButtonLoading(buttonEl, loading) {
   if (!buttonEl) {
     return;
@@ -192,6 +200,7 @@ function syncHighlightFilterButtons() {
 function applyHighlightFilterState(enabled) {
   state.highlightOnly = Boolean(enabled);
   syncHighlightFilterButtons();
+  renderCurrentMessagesWithFilters();
 }
 
 function applySettingsState(open) {
@@ -249,10 +258,6 @@ function getSelectedGuildIds() {
 }
 
 function getSelectedGuildIdsForSave() {
-  const selected = getSelectedGuildIds();
-  if (selected.length > 0) {
-    return selected;
-  }
   return getEffectiveGuildSelection().map(String);
 }
 
@@ -1327,12 +1332,22 @@ function handleHighlightFilterToggle() {
   applyHighlightFilterState(!state.highlightOnly);
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
-  renderMessages(state.loadedMessages, state.latestChannels || []);
 }
 
 if (toggleHighlightFilterEl) {
   toggleHighlightFilterEl.addEventListener("click", handleHighlightFilterToggle);
 }
+
+document.addEventListener("click", (event) => {
+  const target = event.target?.closest?.("#toggle-highlight-filter");
+  if (!target) {
+    return;
+  }
+  if (toggleHighlightFilterEl && target === toggleHighlightFilterEl) {
+    return;
+  }
+  handleHighlightFilterToggle();
+});
 
 openSettingsEl.addEventListener("click", () => {
   applySettingsState(!state.settingsOpen);
