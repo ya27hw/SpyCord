@@ -200,7 +200,6 @@ function syncHighlightFilterButtons() {
 function applyHighlightFilterState(enabled) {
   state.highlightOnly = Boolean(enabled);
   syncHighlightFilterButtons();
-  renderCurrentMessagesWithFilters();
 }
 
 function applySettingsState(open) {
@@ -804,27 +803,22 @@ function renderMessages(messages, channels) {
       : "No channel selected";
   }
 
-  const filteredMessages = messages.filter((message) => {
-    if (!state.highlightOnly) {
-      return true;
-    }
-    return Boolean(message.mentions_me || hasKeywordMatch(message.content, state.keywords));
-  });
-  messageCountEl.textContent = `${filteredMessages.length} result${filteredMessages.length === 1 ? "" : "s"}`;
+  const visibleMessages = messages;
+  messageCountEl.textContent = `${visibleMessages.length} result${visibleMessages.length === 1 ? "" : "s"}`;
 
   const shouldStickToBottom =
     messageListEl.scrollHeight - messageListEl.scrollTop - messageListEl.clientHeight < 80;
 
   messageListEl.innerHTML = "";
 
-  if (filteredMessages.length === 0) {
+  if (visibleMessages.length === 0) {
     emptyStateEl.classList.remove("hidden");
     return;
   }
 
   emptyStateEl.classList.add("hidden");
 
-  for (const message of filteredMessages) {
+  for (const message of visibleMessages) {
     const row = document.createElement("article");
     const matchKeyword = hasKeywordMatch(message.content, state.keywords);
     row.className = `message-row${message.mentions_me ? " mention-highlight" : ""}${matchKeyword ? " keyword-highlight" : ""}`;
@@ -1377,6 +1371,12 @@ toggleChannelsEl.addEventListener("click", () => {
 
 function handleHighlightFilterToggle() {
   applyHighlightFilterState(!state.highlightOnly);
+  state.loadedMessages = [];
+  state.oldestLoadedLine = null;
+  state.newestLoadedLine = null;
+  state.hasMoreOlder = false;
+  deferredMessageRender = null;
+  renderMessages([], state.latestChannels || []);
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
   fetchState().catch((error) => {
