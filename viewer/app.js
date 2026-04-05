@@ -36,6 +36,7 @@ const state = {
   highlightOnly: false,
   latestChannels: [],
   keywords: [],
+  messageViewLoading: false,
 };
 
 const serverListEl = document.getElementById("server-list");
@@ -48,6 +49,8 @@ const statusTextEl = document.getElementById("status-text");
 const statusDotEl = document.querySelector(".status-dot");
 const refreshTextEl = document.getElementById("refresh-text");
 const emptyStateEl = document.getElementById("empty-state");
+const messageViewLoadingEl = document.getElementById("message-view-loading");
+const messageViewLoadingTextEl = document.getElementById("message-view-loading-text");
 const logPathEl = document.getElementById("log-path");
 const searchInputEl = document.getElementById("search-input");
 const searchWrapEl = document.querySelector(".search-wrap");
@@ -94,6 +97,7 @@ const configFormEl = document.getElementById("config-form");
 const formatDataToggleEl = document.getElementById("format-data-toggle");
 const themeToggleLabelEl = document.getElementById("theme-toggle-label");
 const appShellEl = document.querySelector(".app-shell");
+const chatPanelEl = document.querySelector(".chat-panel");
 const mentionPattern = /(@everyone|@here|@\S+)/g;
 const singleMentionPattern = /^(@everyone|@here|@\S+)$/;
 let deferredMessageRender = null;
@@ -113,6 +117,18 @@ function setButtonLoading(buttonEl, loading) {
   buttonEl.disabled = Boolean(loading);
   buttonEl.classList.toggle("is-loading", Boolean(loading));
   buttonEl.setAttribute("aria-busy", loading ? "true" : "false");
+}
+
+function setMessageViewLoading(loading, label = "Loading messages...") {
+  state.messageViewLoading = Boolean(loading);
+  chatPanelEl?.classList.toggle("is-message-view-loading", state.messageViewLoading);
+  if (messageViewLoadingEl) {
+    messageViewLoadingEl.classList.toggle("hidden", !state.messageViewLoading);
+    messageViewLoadingEl.setAttribute("aria-hidden", state.messageViewLoading ? "false" : "true");
+  }
+  if (messageViewLoadingTextEl) {
+    messageViewLoadingTextEl.textContent = label;
+  }
 }
 
 function eventClassName(eventType) {
@@ -1370,18 +1386,16 @@ toggleChannelsEl.addEventListener("click", () => {
 });
 
 function handleHighlightFilterToggle() {
-  applyHighlightFilterState(!state.highlightOnly);
-  state.loadedMessages = [];
-  state.oldestLoadedLine = null;
-  state.newestLoadedLine = null;
-  state.hasMoreOlder = false;
-  deferredMessageRender = null;
-  renderMessages([], state.latestChannels || []);
+  const nextHighlightState = !state.highlightOnly;
+  applyHighlightFilterState(nextHighlightState);
+  setMessageViewLoading(true, nextHighlightState ? "Loading highlights..." : "Loading messages...");
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
   fetchState().catch((error) => {
     statusTextEl.textContent = "Connection issue";
     refreshTextEl.textContent = error.message;
+  }).finally(() => {
+    setMessageViewLoading(false);
   });
 }
 
