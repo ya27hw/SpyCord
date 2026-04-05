@@ -201,8 +201,11 @@ def build_state(
     if before_line is not None:
         filtered = [message for message in filtered if message.line_number < before_line]
 
-    has_more_older = len(filtered) > limit
-    filtered = filtered[-limit:]
+    if highlight_only:
+        has_more_older = False
+    else:
+        has_more_older = len(filtered) > limit
+        filtered = filtered[-limit:]
     last_updated = log_path.stat().st_mtime if log_path.exists() else None
 
     return {
