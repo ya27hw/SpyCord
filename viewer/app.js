@@ -55,6 +55,7 @@ const logPathEl = document.getElementById("log-path");
 const searchInputEl = document.getElementById("search-input");
 const searchWrapEl = document.querySelector(".search-wrap");
 const mobileSearchToggleEl = document.getElementById("mobile-search-toggle");
+const cancelMobileSearchEl = document.getElementById("cancel-mobile-search");
 const themeToggleEl = document.getElementById("theme-toggle");
 const toggleServersEl = document.getElementById("toggle-servers");
 const toggleChannelsEl = document.getElementById("toggle-channels");
@@ -95,7 +96,7 @@ const configSummaryEl = document.getElementById("config-summary");
 const configSummaryTextEl = document.getElementById("config-summary-text");
 const configFormEl = document.getElementById("config-form");
 const formatDataToggleEl = document.getElementById("format-data-toggle");
-const themeToggleLabelEl = document.getElementById("theme-toggle-label");
+const themeToggleIconEl = document.getElementById("theme-toggle-icon");
 const appShellEl = document.querySelector(".app-shell");
 const chatPanelEl = document.querySelector(".chat-panel");
 const mentionPattern = /(@everyone|@here|@\S+)/g;
@@ -145,7 +146,14 @@ function eventClassName(eventType) {
 function applyTheme(theme) {
   state.theme = theme === "light" ? "light" : "dark";
   document.body.classList.toggle("light-mode", state.theme === "light");
-  themeToggleLabelEl.textContent = state.theme === "light" ? "Dark Mode" : "Light Mode";
+  if (themeToggleIconEl) {
+    themeToggleIconEl.textContent = state.theme === "light" ? "\u2600" : "\u263E";
+  }
+  if (themeToggleEl) {
+    const nextModeLabel = state.theme === "light" ? "Switch to dark mode" : "Switch to light mode";
+    themeToggleEl.setAttribute("aria-label", nextModeLabel);
+    themeToggleEl.setAttribute("title", nextModeLabel);
+  }
   localStorage.setItem("viewer-theme", state.theme);
 }
 
@@ -200,6 +208,21 @@ function applyMobileSearchState(open) {
   }
   if (shouldOpen) {
     setTimeout(() => searchInputEl?.focus(), 130);
+  }
+}
+
+function cancelMobileSearch() {
+  const hadQuery = Boolean(state.searchQuery);
+  state.searchQuery = "";
+  if (searchInputEl) {
+    searchInputEl.value = "";
+  }
+  applyMobileSearchState(false);
+  if (hadQuery) {
+    fetchState().catch((error) => {
+      statusTextEl.textContent = "Connection issue";
+      refreshTextEl.textContent = error.message;
+    });
   }
 }
 
@@ -1467,6 +1490,12 @@ if (mobileSearchToggleEl) {
   mobileSearchToggleEl.addEventListener("click", () => {
     applyMobileSearchState(!state.mobileSearchOpen);
     applyMobileHeaderMenuState(false);
+  });
+}
+
+if (cancelMobileSearchEl) {
+  cancelMobileSearchEl.addEventListener("click", () => {
+    cancelMobileSearch();
   });
 }
 

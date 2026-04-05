@@ -69,12 +69,13 @@
               <span class="button-icon" aria-hidden="true">&#128172;</span>
               <span>Channels</span>
             </button>
-            <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">
-              <span class="button-icon" aria-hidden="true">&#127767;</span>
-              <span id="theme-toggle-label">Light Mode</span>
+            <button id="theme-toggle" class="theme-toggle theme-toggle-icon-only" type="button" aria-label="Switch to light mode" title="Switch to light mode">
+              <span id="theme-toggle-icon" class="button-icon theme-toggle-icon" aria-hidden="true">&#9790;</span>
             </button>
-            <button id="open-help" class="settings-button" type="button" aria-label="Open help">?</button>
-            <button id="open-settings" class="settings-button" type="button" aria-label="Open settings">&#9881;</button>
+            <div class="mobile-actions-footer">
+              <button id="open-help" class="settings-button" type="button" aria-label="Open help">?</button>
+              <button id="open-settings" class="settings-button" type="button" aria-label="Open settings">&#9881;</button>
+            </div>
           </div>
         </div>
         <div class="header-controls">
@@ -88,6 +89,7 @@
           <label class="search-wrap" for="search-input">
             <span class="search-icon">/</span>
             <input id="search-input" type="search" placeholder="Search messages, authors, events...">
+            <button id="cancel-mobile-search" class="search-cancel-button" type="button" aria-label="Cancel search">&times;</button>
           </label>
         </div>
         <div class="header-meta">
@@ -180,27 +182,31 @@
           <div class="help-grid">
             <div class="help-card">
               <h4>Server Rail</h4>
-              <p>The far-left column shows the servers this bot can monitor. Click a server icon to switch the message view to that server.</p>
+              <p>The far-left rail shows available servers. Unread servers get a red dot, and on mobile the rail opens as a larger left-side drawer for easier tapping.</p>
             </div>
             <div class="help-card">
               <h4>Channel Browser</h4>
-              <p>The middle sidebar lists only the channels for the selected server. Use the edge button to collapse it for more room.</p>
+              <p>The channel browser lists channels for the selected server only. Use the three-dot menu to add a server to monitoring or choose exactly which channels should be monitored.</p>
             </div>
             <div class="help-card">
               <h4>Settings</h4>
-              <p>Use the gear icon to save your bot token and choose which discovered servers should actually be monitored.</p>
+              <p>Settings stores your bot token, optional Discord webhook URL, and highlight keywords. Save and Start reconnects the monitor using those saved values.</p>
             </div>
             <div class="help-card">
               <h4>Search</h4>
-              <p>The search bar filters the current view by message text, usernames, channels, categories, and event labels.</p>
+              <p>Search filters the current message view by text, usernames, channels, categories, and event labels. On mobile it expands inline from the header and can be cancelled with the X button.</p>
             </div>
             <div class="help-card">
-              <h4>Mentions</h4>
-              <p>Messages that mention the monitored account are highlighted in yellow, similar to Discord mention highlights.</p>
+              <h4>Highlights</h4>
+              <p>The Highlights button switches the current channel into a filtered view that only shows mentions of the monitored user and messages matching your saved keywords.</p>
+            </div>
+            <div class="help-card">
+              <h4>Webhook Alerts</h4>
+              <p>When webhook alerts are enabled for monitored channels, new matching channel messages are posted to your Discord webhook with an embed containing content and metadata.</p>
             </div>
             <div class="help-card">
               <h4>Live Updates</h4>
-              <p>SpyCord refreshes automatically. The timestamp in the header shows when the viewer last refreshed from the log.</p>
+              <p>SpyCord refreshes automatically. The header timestamp shows the last refresh, and loading indicators appear when switching into filtered highlight views.</p>
             </div>
           </div>
         </section>
