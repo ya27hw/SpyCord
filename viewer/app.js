@@ -132,6 +132,13 @@ function setMessageViewLoading(loading, label = "Loading messages...") {
   }
 }
 
+function bindEvent(element, eventName, handler) {
+  if (!element) {
+    return;
+  }
+  element.addEventListener(eventName, handler);
+}
+
 function eventClassName(eventType) {
   switch (eventType) {
     case "EDIT":
@@ -1179,7 +1186,7 @@ async function tick() {
 /*
  * Keep history loading lazy: when users scroll near the top, fetch older chunks.
  */
-messageListEl.addEventListener("scroll", () => {
+bindEvent(messageListEl, "scroll", () => {
   if (messageListEl.scrollTop < 140) {
     fetchOlderMessages().catch((error) => {
       statusTextEl.textContent = "Connection issue";
@@ -1328,7 +1335,7 @@ async function stopMonitor() {
 
 let searchDebounceHandle = null;
 
-searchInputEl.addEventListener("input", (event) => {
+bindEvent(searchInputEl, "input", (event) => {
   clearTimeout(searchDebounceHandle);
   state.searchQuery = event.target.value.trim();
   searchDebounceHandle = setTimeout(() => {
@@ -1339,12 +1346,12 @@ searchInputEl.addEventListener("input", (event) => {
   }, 150);
 });
 
-themeToggleEl.addEventListener("click", () => {
+bindEvent(themeToggleEl, "click", () => {
   applyTheme(state.theme === "dark" ? "light" : "dark");
   applyMobileHeaderMenuState(false);
 });
 
-saveConfigEl.addEventListener("click", () => {
+bindEvent(saveConfigEl, "click", () => {
   setButtonLoading(saveConfigEl, true);
   saveConfigAndStart()
     .catch((error) => {
@@ -1358,7 +1365,7 @@ saveConfigEl.addEventListener("click", () => {
     });
 });
 
-stopMonitorEl.addEventListener("click", () => {
+bindEvent(stopMonitorEl, "click", () => {
   stopMonitor().catch((error) => {
     monitorBadgeEl.textContent = "Error";
     monitorBadgeEl.classList.remove("live");
@@ -1367,7 +1374,7 @@ stopMonitorEl.addEventListener("click", () => {
   });
 });
 
-toggleConfigEl.addEventListener("click", () => {
+bindEvent(toggleConfigEl, "click", () => {
   state.configExpanded = !state.configExpanded;
   if (!state.configExpanded && !state.guildSelectionDirty) {
     state.draftGuildIds = [...state.configuredGuildIds];
@@ -1375,16 +1382,16 @@ toggleConfigEl.addEventListener("click", () => {
   refreshConfigVisibility();
 });
 
-tokenInputEl.addEventListener("input", () => {
+bindEvent(tokenInputEl, "input", () => {
   renderGuildSelector(state.monitorGuilds);
   refreshConfigVisibility();
 });
 
-webhookInputEl.addEventListener("input", () => {
+bindEvent(webhookInputEl, "input", () => {
   refreshConfigVisibility();
 });
 
-formatDataToggleEl.addEventListener("change", (event) => {
+bindEvent(formatDataToggleEl, "change", (event) => {
   applyFormatData(event.target.checked);
   fetchState().catch((error) => {
     statusTextEl.textContent = "Connection issue";
@@ -1392,17 +1399,17 @@ formatDataToggleEl.addEventListener("change", (event) => {
   });
 });
 
-toggleSidebarEl.addEventListener("click", () => {
+bindEvent(toggleSidebarEl, "click", () => {
   applySidebarState(!state.sidebarCollapsed);
 });
 
-toggleServersEl.addEventListener("click", () => {
+bindEvent(toggleServersEl, "click", () => {
   applyMobileServersState(!appShellEl.classList.contains("mobile-servers-open"));
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
 });
 
-toggleChannelsEl.addEventListener("click", () => {
+bindEvent(toggleChannelsEl, "click", () => {
   applyMobileChannelsState(!appShellEl.classList.contains("mobile-channels-open"));
   applyMobileHeaderMenuState(false);
   applyMobileSearchState(false);
@@ -1437,19 +1444,19 @@ document.addEventListener("click", (event) => {
   handleHighlightFilterToggle();
 });
 
-openSettingsEl.addEventListener("click", () => {
+bindEvent(openSettingsEl, "click", () => {
   applySettingsState(!state.settingsOpen);
 });
 
-closeSettingsEl.addEventListener("click", () => {
+bindEvent(closeSettingsEl, "click", () => {
   applySettingsState(false);
 });
 
-openHelpEl.addEventListener("click", () => {
+bindEvent(openHelpEl, "click", () => {
   applyHelpState(!state.helpOpen);
 });
 
-closeHelpEl.addEventListener("click", () => {
+bindEvent(closeHelpEl, "click", () => {
   applyHelpState(false);
 });
 
@@ -1499,11 +1506,11 @@ if (cancelMobileSearchEl) {
   });
 }
 
-closeChannelFilterEl.addEventListener("click", () => {
+bindEvent(closeChannelFilterEl, "click", () => {
   applyChannelFilterState(false);
 });
 
-applyChannelFilterEl.addEventListener("click", () => {
+bindEvent(applyChannelFilterEl, "click", () => {
   setButtonLoading(applyChannelFilterEl, true);
   saveChannelFilterFromModal()
     .catch((error) => {
@@ -1515,19 +1522,19 @@ applyChannelFilterEl.addEventListener("click", () => {
     });
 });
 
-settingsModalEl.addEventListener("click", (event) => {
+bindEvent(settingsModalEl, "click", (event) => {
   if (event.target === settingsModalEl) {
     applySettingsState(false);
   }
 });
 
-helpModalEl.addEventListener("click", (event) => {
+bindEvent(helpModalEl, "click", (event) => {
   if (event.target === helpModalEl) {
     applyHelpState(false);
   }
 });
 
-channelFilterModalEl.addEventListener("click", (event) => {
+bindEvent(channelFilterModalEl, "click", (event) => {
   if (event.target === channelFilterModalEl) {
     applyChannelFilterState(false);
   }
@@ -1605,7 +1612,7 @@ document.addEventListener("selectionchange", () => {
   flushDeferredMessageRender();
 });
 
-window.addEventListener("resize", () => {
+bindEvent(window, "resize", () => {
   applyChannelActionsMenuState(false);
   if (!isMobileViewport()) {
     applyMobileHeaderMenuState(false);
@@ -1613,6 +1620,11 @@ window.addEventListener("resize", () => {
     applyMobileServersState(false);
     applyMobileChannelsState(false);
   }
+});
+
+bindEvent(window, "error", (event) => {
+  statusTextEl.textContent = "UI error";
+  refreshTextEl.textContent = event?.message || "Unexpected frontend error";
 });
 
 applyTheme(localStorage.getItem("viewer-theme") || "dark");

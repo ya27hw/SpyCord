@@ -1478,12 +1478,12 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .chat-header {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto 1fr;
     grid-template-areas:
-      "actions"
-      "controls";
+      "actions controls";
     padding: 10px 12px 10px;
     row-gap: 8px;
+    align-items: center;
   }
 
   .header-main {
@@ -1491,7 +1491,7 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .header-top-actions {
-    width: 100%;
+    width: auto;
     justify-content: flex-start;
     gap: 8px;
   }
@@ -1570,12 +1570,13 @@ body.light-mode .server-list::-webkit-scrollbar-thumb {
   }
 
   .header-controls {
-    width: 100%;
+    width: auto;
     flex-direction: row;
     align-items: center;
     justify-content: flex-end;
     min-height: 42px;
     gap: 8px;
+    justify-self: end;
   }
 
   .mobile-search-toggle {
